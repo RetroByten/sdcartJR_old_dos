@@ -284,7 +284,7 @@ card_writeSectors:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
-	; card_readCID :
+	; card_readCID : Read the card CID register
 	;
 	; ES:DI : Destination buffer
 	;
@@ -298,5 +298,18 @@ card_readCID:
 	ret
 
 
-
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; card_readCSD : Read the card CSD register
+	;
+	; ES:DI : Destination buffer
+	;
+	; Returns with carry set on timeout.
+	;
+card_readCSD:
+	push ax
+	; R1 value returned in AL
+	call card_cmd9
+	pop ax
+	ret
 
