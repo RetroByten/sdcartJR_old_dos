@@ -264,6 +264,8 @@ card_writeSectors:
 .write_next_sector:
 	call card_cmd24
 	jc .error
+	cmp dl, 0x05
+	jne .error
 	; Advance to next block
 	add bx, 512
 	adc ax, 0
@@ -272,8 +274,12 @@ card_writeSectors:
 	loop .write_next_sector
 
 	clc
-.error:
+	jmp .ret
 
+.error:
+	stc
+
+.ret:
 	pop si
 	pop dx
 	pop cx
