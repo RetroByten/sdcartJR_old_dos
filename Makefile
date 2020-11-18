@@ -22,5 +22,5 @@ clean:
 	$(MAKE) -C tools clean
 	$(MAKE) -C driver clean
 	$(MAKE) -C bios clean
-	rm outputs/* release/* -f
+	rm outputs/* release/*.com release/*.sys release/*.rom -f
 
