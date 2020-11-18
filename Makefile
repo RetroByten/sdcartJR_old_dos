@@ -1,6 +1,8 @@
+RELEASE_FILE=sdcjr01.zip
+
 all: bios driver tools
 
-.PHONY: bios driver tools
+.PHONY: bios driver tools release
 
 bios:
 	$(MAKE) -C bios
@@ -11,9 +13,14 @@ driver:
 tools:
 	$(MAKE) -C tools
 
+release: all
+	zip -jr $(RELEASE_FILE) release/*
+	zip -jr $(RELEASE_FILE) outputs/*
+
+
 clean:
 	$(MAKE) -C tools clean
 	$(MAKE) -C driver clean
 	$(MAKE) -C bios clean
-	rm outputs/* -f
+	rm outputs/* release/* -f
 
