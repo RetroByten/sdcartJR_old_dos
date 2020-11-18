@@ -28,6 +28,10 @@ org 0x00
 cpu 8086
 bits 16
 
+; The unrolled 512-byte spi receive function is faster (~40 kB/s instead of 33 kB/s)
+; but uses an additional 4.5K of memory.
+%undef NO_UNROLL_READ512
+
 %undef TRACE_CARD_INIT
 %undef TRACE_READS
 %undef TRACE_COMMANDS

@@ -394,9 +394,13 @@ card_cmd17:
 		mov cx, ds
 		mov es, cx
 		mov di, bp
+%ifdef NO_UNROLL_READ512
 		mov cx, 512
 		; Now uses ES:DI
 		call spi_rxbytes
+%else
+		call spi_rx512bytes
+%endif
 	pop di
 	pop es
 

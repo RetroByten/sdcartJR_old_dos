@@ -334,6 +334,59 @@ spi_rxbytes:
 	ret
 
 
+%ifndef NO_UNROLL_READ512
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; spi_rx512bytes : Receive a fixed number of bytes while transmitting 1s.
+	;
+	; Destination is ES:DI
+	;
+spi_rx512bytes:
+	push ax
+	push bx
+	push es
+	push ds
+	push si
+	push di
+
+	; Set DS to cartridge segment, so lodsw is usable for clocking
+	mov ax, SPI_IO_SEGMENT + (OP_EXCHANGE_OFF >> 4)
+	mov ds, ax
+
+	; Load dummy byte for first 8 cycles.
+	mov al, [0xff]
+
+	mov bx, OP_SHIFT_OFF + 7
+	std
+
+%rep 512
+	mov si, bx	; This starts at SI=7
+	lodsw		; SI=105 when complete
+	lodsw		; SI=103 when complete
+	lodsw		; SI=101 when complete
+	lodsw		; SI=0FF when complete.
+
+	; Below 0x100, there is no clocking. But memory accesses from 0-FF loads
+	; new value in the transmit shift register. But that's good, SI equals FF now
+	; so it loads 0xFF. Eactly what's wanted!
+	;
+	movsb	; Copy received byte, load FF for next transmission.
+	inc di
+	inc di
+%endrep
+
+	cld		; Clear decrement.
+
+	pop di
+	pop si
+	pop ds
+	pop es
+	pop bx
+	pop ax
+	ret
+%endif
+
+
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
 	; spi_txbytes : Transmit a number of bytes, ignoring reception
