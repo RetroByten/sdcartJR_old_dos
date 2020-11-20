@@ -202,15 +202,77 @@ card_init:
 	; card_readSectors :
 	;
 	; Input: dword in AX..BX - same order as geo2block
+	;                         AH AL BH BL
+	;                         31........0
 	;        CX is sector count
 	;		 DS:BP : Destination buffer
 	;
 	; Returns with carry set on timeout.
 	;
 	; TODO : Support block-adressed cards
-	; TODO : Try using the multiple-read block command (CMD18)
 	;
 card_readSectors:
+	cmp cx, 1
+	je .readSingleSector
+
+;	jmp .no_multiple_read
+
+	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_IS_MMC, .multi_block_read_mmc
+
+	;;; Reads multiple blocks using CMD18 (SD card version)
+	;
+.multi_block_read_sd:
+	; Go right ahead and issue CMD18. The card starts sending
+	; blocks...
+	push ax
+	push bx
+	call blockToByteAddress
+	call card_cmd18
+	jc .read_multi_sd_failed
+	; The operating must be stopped with CMD12.
+	call card_cmd12
+.read_multi_sd_failed:
+	pop bx
+	pop ax
+	ret
+
+	;;; Reads multiple blocks using CMD18 (MMC card version)
+	;
+.multi_block_read_mmc:
+	; First we must tell the card how many blocks we will read.
+	push ax ; Preserve the block number
+	call card_cmd23	; Set block count (arg is CX)
+	pop ax
+	jc .set_block_count_failed
+	; Now read the blocks.
+	push ax
+	push bx
+	call blockToByteAddress
+	call card_cmd18
+.set_block_count_failed:
+	pop bx
+	pop ax
+	ret
+
+	;;; Read a single sector ;;;
+	;
+.readSingleSector:
+	push ax
+	push bx
+	push dx
+	call blockToByteAddress
+	call card_cmd17
+	jc .error_reading_one_sector
+	clc
+.error_reading_one_sector:
+	pop dx
+	pop bx
+	pop ax
+	ret
+
+	;;; Original implementation (repeated calls to cmd17)	;;;
+	;
+.no_multiple_read:
 	push ax
 	push bx
 	push cx
