@@ -117,6 +117,13 @@ spi_justclock:
 	ret
 
 
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; SPI_RECEIVE_BYTE : Transmit one dummy (0xFF) byte and receive one byte
+	;
+	; Arguments: None
+	; Returns: Byte in AL. Garbage in AH.
+	;
 %macro SPI_RECEIVE_BYTE 0
 	push ds
 	push si
@@ -141,6 +148,7 @@ spi_justclock:
 	pop ds
 %endmacro
 
+
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
 	; spi_receive_byte : Transmit one dummy (0xFF) byte and receive one byte
@@ -155,11 +163,47 @@ spi_receive_byte:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
-	; spi_send_word : Transmit one word while discarding the received byte.
+	; Macro SPI_SEND_BYTE : Transmit a word
 	;
-	; Arguments:	BX is the value to be transmitted (MSB first)
+	; Arguments: Contant or indirect register (except SI)
+	; Returns: nothing
 	;
-spi_send_word:
+%macro SPI_SEND_BYTE 1
+	push ax
+	push ds
+	push si
+
+	mov ax, SPI_IO_SEGMENT + (OP_EXCHANGE_OFF >> 4)
+	mov ds, ax
+
+	mov si, OP_SHIFT_OFF
+
+	; Perform a read access to OP_EXCHANGE to load the byte
+	; to transmit in the 75ls165 shift register.
+	;
+	; The adress bits are the data.
+	;
+	mov al, [%1]
+
+	lodsw
+	lodsw
+	lodsw
+	lodsw
+
+	pop si
+	pop ds
+	pop ax
+%endmacro
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; Macro SPI_SEND_WORD_BX : Transmit a word
+	;
+	; Arguments: Implied (BX)
+	; Returns: nothing
+	;
+%macro SPI_SEND_WORD_BX 0
 	push ax
 	push bx
 	push ds
@@ -186,7 +230,7 @@ spi_send_word:
 	lodsw
 	lodsw
 
-	mov si, OP_SHIFT_OFF
+;	mov si, OP_SHIFT_OFF
 	; Perform another read access to OP_EXCHANGE to load the second byte
 	pop bx
 	xor bh,bh	; LSB
@@ -201,8 +245,18 @@ spi_send_word:
 	pop ds
 	pop bx
 	pop ax
-	ret
+%endmacro
 
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; spi_send_word : Transmit one word while discarding the received byte.
+	;
+	; Arguments:	BX is the value to be transmitted (MSB first)
+	;
+spi_send_word:
+	SPI_SEND_WORD_BX
+	ret
 
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -443,3 +497,64 @@ spi_txbytes:
 	pop ax
 	ret
 
+%ifndef NO_UNROLL_WRITE512
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; spi_tx512bytes : Transmit 512 bytes, ignoring reception
+	;
+	; BP: Pointer to data (in DS)
+	;
+spi_tx512bytes:
+	push ax
+	push bx
+	push cx
+	push dx
+	push bp
+	push es
+	push ds
+	push si
+
+	; Setup ES so buffer is at ES:BP
+	mov ax, ds
+	mov es, ax
+
+	; Set DS to cartridge segment, so lodsw is usable for clocking
+	mov ax, SPI_IO_SEGMENT + (OP_EXCHANGE_OFF >> 4)
+	mov ds, ax
+
+	mov dx, OP_SHIFT_OFF
+
+	xor bh, bh
+
+	mov cx, 32
+.next:
+	; Reposition SI periodically to avoid going over 0xff
+	mov si, dx
+%rep 16
+	mov bl, [es:bp]	; Retrive byte to transmit
+	inc bp			; Advance to next buffer position
+	mov bl, [bx]	; Access in 00-ff range based on value to load shift register
+
+	; Clock 8 bytes (each lodsw generates two pulses)
+	lodsw
+	lodsw
+	lodsw
+	lodsw
+%endrep
+	dec cx
+	jnz .next
+
+	pop si
+	pop ds
+	pop es
+	pop bp
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+
+
+
+%endif

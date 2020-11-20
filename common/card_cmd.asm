@@ -337,14 +337,14 @@ card_cmd17:
 	; Send CMD17
 	mov dx, bx	; copy BX to DX, since BX is the argument for spi_send_X
 
-	mov bx, 0x40 + 17
-	call spi_send_byte
+	SPI_SEND_BYTE 0x40 + 17
+
 	mov bx, ax
 	call spi_send_word
 	mov bx, dx	; Get original BX values
 	call spi_send_word
-	mov bx, 0xff ; CRC TODO
-	call spi_send_byte
+
+	SPI_SEND_BYTE 0xff	; CRC
 
 	; The cards sends 0xff until it finally gives the first byte
 	; of R7, which is identical to the single-byte R1 reply.
@@ -472,14 +472,14 @@ card_cmd18:
 	; Send CMD18
 	mov dx, bx	; copy BX to DX, since BX is the argument for spi_send_X
 
-	mov bx, 0x40 + 18
-	call spi_send_byte
+	SPI_SEND_BYTE 0x40 + 18
+
 	mov bx, ax
 	call spi_send_word
 	mov bx, dx	; Get original BX values
 	call spi_send_word
-	mov bx, 0xff ; CRC TODO
-	call spi_send_byte
+
+	SPI_SEND_BYTE 0xff	; CRC
 
 	; Before usinc CX for timouts, copy it to BX. It is our block count!
 	mov bx, cx
@@ -612,14 +612,14 @@ card_cmd23:
 	push cx
 	call spi_select
 
-	mov bx, 0x40 + 23
-	call spi_send_byte
+	SPI_SEND_BYTE 0x40 + 23
+
 	xor bx, bx ; Bits 31-16
 	call spi_send_word
 	mov bx, cx ; Bits 15-0
 	call spi_send_word
-	mov bx, 0xff ; CRC TODO
-	call spi_send_byte
+
+	SPI_SEND_BYTE 0xff	; CRC
 
 	; The cards sends 0xff until it finally gives R1. R1
 	; is easily detected by looking at the most significant bit
@@ -678,14 +678,14 @@ card_cmd24:
 	mov dx, bx	; copy BX to DX, since BX is the argument for spi_send_X
 
 	; Send CMD24
-	mov bx, 0x40 + 24
-	call spi_send_byte
+	SPI_SEND_BYTE 0x40 + 24
+
 	mov bx, ax
 	call spi_send_word
 	mov bx, dx	; Get original BX values
 	call spi_send_word
-	mov bx, 0x81 ; CRC TODO
-	call spi_send_byte
+
+	SPI_SEND_BYTE 0xff	; CRC
 
 	; Wait for R1 response
 	mov cx, CARD_MAX_BYTES_UNTIL_R1
@@ -715,11 +715,15 @@ card_cmd24:
 
 	; Send our data!
 	push ds
-	mov cx, 512
 	mov bp, si
 	mov ax, es
 	mov ds, ax
+%ifdef NO_UNROLL_WRITE512
+	mov cx, 512
 	call spi_txbytes	; Source= DS:BP, Length=CX
+%else
+	call spi_tx512bytes	; Source= DS:BP
+%endif
 	pop ds
 
 	; Send a fake CRC (TODO : Compute CRC?)
