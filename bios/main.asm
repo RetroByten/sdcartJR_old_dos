@@ -54,6 +54,9 @@ entry:
 %include 'strutil_bios.asm'
 %include 'spi.asm'
 
+; This provides some macros used card_io to store flags
+%include 'memory.asm'
+
 %define TRACE_ERRORS
 %include 'card_io.asm'
 
@@ -61,7 +64,6 @@ entry:
 %include 'card_cmd.asm'
 
 
-%include 'memory.asm'
 %include 'int13h.asm'
 %include 'int19h.asm'
 

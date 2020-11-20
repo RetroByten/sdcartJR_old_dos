@@ -67,5 +67,33 @@ mem_getFlags:
 	ret
 
 
-
+; card_io.asm requires some macros to store information
+; about the card type and features. How those are stored
+; is application specific.
+%macro JMP_CARD_IO_FLAG_SET 2
+	push ax
+	push ds
+	test byte [INT_USED_TO_STORE_DATA * 4], %1
+	pop ds
+	pop ax
+	jnz %2
+%endmacro
+%macro SET_CARD_IO_FLAG 1
+	push ax
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	or byte [INT_USED_TO_STORE_DATA * 4], %1
+	pop ds
+	pop ax
+%endmacro
+%macro CLR_CARD_IO_FLAGS 0
+	push ax
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	mov byte [INT_USED_TO_STORE_DATA * 4], 0
+	pop ds
+	pop ax
+%endmacro
 

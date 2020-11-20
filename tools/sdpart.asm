@@ -34,10 +34,27 @@ entry:
 %include 'strutil.asm'
 %include 'hexdump.asm'
 %include 'itoa.asm'
+
+;%define NO_UNROLL_READ512
 %include 'spi.asm'
 
+
+; card_io.asm requires some macros to store information
+; about the card type and features. How those are stored
+; is application specific. In this case, ds:card_flags is used.
+%macro JMP_CARD_IO_FLAG_SET 2
+test byte [card_flags], %1
+jnz %2
+%endmacro
+%macro SET_CARD_IO_FLAG 1
+or byte [card_flags], %1
+%endmacro
+%macro CLR_CARD_IO_FLAGS 0
+mov byte [card_flags], 0
+%endmacro
+
+
 %define TRACE_ERRORS
-%define CMD1_HOOK
 %include 'card_io.asm'
 
 ;%define TRACE_CARD_INIT
@@ -875,8 +892,8 @@ readAndPrintCardInfo:
 	; 0 : SD V1  or MMC 1.0-1.2
 	; 1 : SD V2  or MMC 1.4-2.2
 
-	test byte [card_is_mmc], 0xff
-	jnz .is_mmc
+	; Card flags set by card_init
+	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_IS_MMC, .is_mmc
 
 	; Check the version of the CSD structure
 	cmp al, 0
@@ -1158,18 +1175,6 @@ printInt16:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
-	; cmd1_hook : Called by card_init if CMD1 was used with success.
-	;
-	; This should only happen on MMC cards. This knowledge is
-	; used to properly decode the CSD data.
-	;
-cmd1_hook:
-	mov byte [card_is_mmc], 1
-	ret
-
-
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	;
 	; getFirstOnlyFreePart : Point SI to the first partition if it is empty or the only one.
 	;
 	; Returns with CF set otherwise.
@@ -1203,7 +1208,7 @@ getFirstFreeOnlyPart:
 
 section .data
 
-card_is_mmc: db 0
+card_flags: db 0
 
 default_mbr: incbin "mbr.bin"
 

@@ -80,6 +80,23 @@ part_off: dw 0,0
 ; the first call.
 force_init: db 1
 
+; card_io.asm requires some macros to store information
+; about the card type and features. How those are stored
+; is application specific. In the case of this device driver,
+; cs:flags is used.
+flags: db 0
+%macro JMP_CARD_IO_FLAG_SET 2
+test byte [cs:flags], %1
+jnz %2
+%endmacro
+%macro SET_CARD_IO_FLAG 1
+or byte [cs:flags], %1
+%endmacro
+%macro CLR_CARD_IO_FLAGS 0
+mov byte [cs:flags], 0
+%endmacro
+
+
 %include 'strutil.asm'
 %include 'spi.asm'
 %include 'card_cmd.asm'

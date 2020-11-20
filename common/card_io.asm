@@ -28,6 +28,10 @@ cpu 8086
 
 %define INIT_RETRIES	10
 
+
+%define CARD_IO_FLG_IS_MMC			0x01
+%define CARD_IO_FLG_BLOCK_ADRESSING	0x02
+
 section .text
 
 
@@ -62,6 +66,8 @@ card_init:
 	push bp
 	push es
 	push ds
+
+	CLR_CARD_IO_FLAGS
 
 	call card_powerup
 
@@ -159,9 +165,7 @@ card_init:
 
 .cmd1_ok:
 
-%ifdef CMD1_HOOK
-	call cmd1_hook
-%endif
+	SET_CARD_IO_FLAG	CARD_IO_FLG_IS_MMC
 
 %ifdef TRACE_CARD_INIT
 	printStringLn "CMD1 OK"
