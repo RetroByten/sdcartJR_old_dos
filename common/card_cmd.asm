@@ -41,6 +41,8 @@ section .text
 %define CARD_MAX_BYTES_UNTIL_DATA_RESPONSE_TOKEN	10000
 %define CARD_MAX_BYTES_WAIT_IDLE	2000
 
+%define CARD_MAX_BUSY_BYTES 1024
+
 
 %ifdef TRACE_ERRORS
 %macro ERR_TRACE 1
@@ -101,6 +103,25 @@ card_cmd59:
 	push bp
 	mov bp, _dat_cmd59
 	call card_sendCMD_R1
+	pop bp
+	ret
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; card_cmd12 : Stop transmission
+	;
+	; AL = R1 value
+	; Returns with carry set on timeout
+	;
+card_cmd12:
+	push bp
+	push ds
+	mov bp, cs
+	mov ds, bp
+	mov bp, _dat_cmd12
+	call card_sendCMD_R1B
+	pop ds
 	pop bp
 	ret
 
@@ -427,6 +448,215 @@ card_cmd17:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
+	; card_cmd18
+	;
+	; Arguments:	BP to buffer of at least 512 bytes
+	;				AX to bits 31-16 of block number
+	;				BX to bits 15-0 of block number
+	;               CX is the number of blocks to read
+	;
+	; Return: Writes to buffer, return with the data or error token in AL
+	;         (0xFE is the OK value)
+	;
+	; Returns with carry set on timeout
+	;
+card_cmd18:
+	call spi_select
+
+	push bx
+	push cx
+	push dx
+	push bp
+
+
+	; Send CMD18
+	mov dx, bx	; copy BX to DX, since BX is the argument for spi_send_X
+
+	mov bx, 0x40 + 18
+	call spi_send_byte
+	mov bx, ax
+	call spi_send_word
+	mov bx, dx	; Get original BX values
+	call spi_send_word
+	mov bx, 0xff ; CRC TODO
+	call spi_send_byte
+
+	; Before usinc CX for timouts, copy it to BX. It is our block count!
+	mov bx, cx
+
+	; The cards sends 0xff until it finally gives the first byte
+	; of R7, which is identical to the single-byte R1 reply.
+	; R1 is easily detected by looking at the most significant bit
+	; that shall be 0.
+	mov cx, CARD_MAX_BYTES_UNTIL_R1
+.readanotherbyte:
+	call spi_receive_byte ; returns in AL
+
+	and al, al
+	jns .got_r1	; Ah ha!
+	loop .readanotherbyte
+
+	ERR_TRACE '1'
+
+	; Oups, R1 never came our way. Return with carry set...
+	call spi_deselect
+	stc
+	jmp .done
+
+.got_r1:
+	; Check that R1 is not an error
+	; and al,al flags still set from above
+	jnz .r1_error
+
+
+.next_block:
+
+	; Now a number of 0xFF should follow, and then there should
+	; be a data token (0xFE), followed by a data block of 512 bytes,
+	; followed by a 2-byte CRC.
+
+	mov cx, CARD_MAX_BYTES_UNTIL_DATA_TOKEN
+.readanotherbyte2:
+	call spi_receive_byte ; returns in AL
+
+	cmp al, 0xFE
+	je .got_token	; Ah ha!
+
+	; Error token is 000xxxxx format
+	test al, 0xE0
+	jz .error_token
+
+	loop .readanotherbyte2
+
+	; Oups, token never came our way. Return with carry set...
+	ERR_TRACE '2'
+	call spi_deselect
+	stc
+	jmp .done
+
+.error_token:
+	ERR_TRACE '3'
+
+	; Oups, there was an error...
+	call spi_deselect
+	stc
+	jmp .done
+
+.r1_error:
+	ERR_TRACE '4'
+
+	call spi_deselect
+	stc
+	jmp .done
+
+.got_token:
+
+	push es
+	push di
+		mov cx, ds
+		mov es, cx
+		mov di, bp
+%ifdef NO_UNROLL_READ512
+		mov cx, 512
+		; Now uses ES:DI
+		call spi_rxbytes
+%else
+		call spi_rx512bytes
+%endif
+	pop di
+	pop es
+
+	add bp, 512	; Advance buffer by one sector
+
+	; Read the CRC (ignoring it for now)
+	mov cx, 2*8
+	call spi_justclock
+
+	; Decremenet block count
+	dec bx
+	jnz .next_block ; Still more to go?
+
+	; No more!
+	mov cx, 8
+	call spi_justclock
+
+
+	clc
+	call spi_deselect
+
+.done:
+
+
+	pop bp
+	pop dx
+	pop cx
+	pop bx
+.ret:
+	ret
+
+
+
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; card_cmd23 : Send CMD23 (number of blocks) and check for R1 reply
+	;
+	; Argument: CX is the number of blocks.
+	;
+	; AL = R1 value
+	; Returns with carry set on timeout
+	;
+card_cmd23:
+	push bx
+	push cx
+	call spi_select
+
+	mov bx, 0x40 + 23
+	call spi_send_byte
+	xor bx, bx ; Bits 31-16
+	call spi_send_word
+	mov bx, cx ; Bits 15-0
+	call spi_send_word
+	mov bx, 0xff ; CRC TODO
+	call spi_send_byte
+
+	; The cards sends 0xff until it finally gives R1. R1
+	; is easily detected by looking at the most significant bit
+	; that shall be 0.
+	mov cx, CARD_MAX_BYTES_UNTIL_R1
+.readanotherbyte:
+	call spi_receive_byte ; returns in AL
+
+	and al, al
+	jns .got_r1	; Ah ha!
+	loop .readanotherbyte
+
+	; Oups, R1 never came our way. Return with carry set...
+	call spi_deselect
+	stc
+	jmp .done
+
+.got_r1:
+	; Received R1, value is in AL now.
+
+	mov cx, 8
+	call spi_justclock
+
+	call spi_deselect
+	clc
+
+.done:
+	pop cx
+	pop bx
+	ret
+
+
+
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
 	; card_cmd24 : Send CMD24 (Single Block Write) and check for reply
 	;
 	; Arguments:	ES:SI to buffer of at least 512 bytes
@@ -625,7 +855,84 @@ card_cmd8:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
-	; card_cmd55 : Send CMD55 and check for R1 reply.
+	; card_sendCMD_R1B : Send a command and wait for R1b
+	;
+	; The B in R1B is for busy. That is, after the R1 response, a number of zeroes
+	; will be sent while the card is busy. This function keeps reading until
+	; 0xff is received.
+	;
+	; AL = R1 value
+	; BP = Command to send (always 6 bytes)
+	; Returns with carry set on timeout
+	;
+card_sendCMD_R1B:
+	call spi_select
+
+	push bx
+	push cx
+	push bp
+
+	; Transmit command
+	mov cx, 6
+	call spi_txbytes
+
+	; Stuff byte to be discarded
+	call spi_receive_byte
+
+	; The cards sends 0xff until it finally gives R1. R1
+	; is easily detected by looking at the most significant bit
+	; that shall be 0.
+	mov cx, CARD_MAX_BYTES_UNTIL_R1
+.readanotherbyte:
+	call spi_receive_byte ; returns in AL
+
+	and al, al
+	jns .got_r1	; Ah ha!
+	loop .readanotherbyte
+
+	ERR_TRACE '%'
+	; Oups, R1 never came our way. Return with carry set...
+	call spi_deselect
+	stc
+	jmp .done
+
+.got_r1:
+	; Received R1, value is in AL now. Keep a copy in BL for later.
+	mov bl, al
+
+	; Read bytes until 0xFF is received
+	mov cx, CARD_MAX_BUSY_BYTES
+.stillBusy:
+	call spi_receive_byte
+	cmp al, 0xff
+	je .idle
+	loop .stillBusy
+
+	ERR_TRACE '&'
+	; Busy for ever?
+	call spi_deselect
+	stc
+	jmp .done
+
+.idle:
+
+	mov cx, 8
+	call spi_justclock
+
+	call spi_deselect
+	clc
+
+.done:
+	pop bp
+	pop cx
+	pop bx
+	ret
+
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; card_sendCMD_R1 : Send a command and wait for R1
 	;
 	; AL = R1 value
 	; BP = Command to send (always 6 bytes)
@@ -681,6 +988,7 @@ _dat_cmd1: db 0x41, 0, 0, 0, 0x0, 0xF7
 _dat_cmd8: db 0x40+8, 0, 0, 1, 0xAA, 0x87
 _dat_cmd9: db 0x40+9, 0, 0, 0, 0x00, 0xAF
 _dat_cmd10: db 0x40+10, 0, 0, 0, 0x0, 0x1B
+_dat_cmd12: db 0x40+12, 0, 0, 0, 0, 0xFF ; CRC todo
 _dat_cmd13: db 0x40+13, 0, 0, 0, 0x0, 0xFF ; CRC todo
 _dat_cmd16: db 0x40+16, 0, 0, 0x02, 0, 0xFF ; CRC todo
 _dat_cmd55: db 0x40+55, 0, 0, 0, 0, 0xF7
