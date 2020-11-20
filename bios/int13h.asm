@@ -323,7 +323,6 @@ int13h_fn02:
 	mov di, bx	; Keep a copy of the destination offset
 
 	call geo2block
-	call blockToByteAddress	; TODO : support block-adressed cards
 
 %ifdef TRACE_INT
 	call traceBlockNo
@@ -334,29 +333,13 @@ int13h_fn02:
 	mov cx, bp	; AL contained the number of sector to read
 	xor ch, ch
 
-.next_block:
-	push ds ; TODO : Rework card_cmd17 to use ES:BX, not to trash AX... right now it looks horrible and is likely inefficient...
+	push ds
 		mov bp, es
-		mov ds, bp			; DS = Destination segment
-		mov bp, di			; BP = Destination offset
-		mov dx, ax	; Save AX for later (increase)
-
-		call card_cmd17
+		mov ds, bp
+		mov bp, di
+		call card_readSectors
 	pop ds
-
 	jc .timeout
-	cmp al, CARD_READ_OK_TOKEN
-	jne .error
-
-	mov ax, dx	; restore block address
-
-	; Increment block number
-	add bx, 512	; TODO : Support block-adressed cards
-	adc ax, 0
-	; Increment buffer position
-	add di, 512
-
-	loop .next_block
 
 	; Done!
 	jmp .done
