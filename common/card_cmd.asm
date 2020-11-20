@@ -791,6 +791,174 @@ card_cmd24:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
+	; card_cmd25 : Send CMD25 (Multiple Block Write) and check for reply
+	;
+	; Arguments:	ES:SI to buffer of at least 512 bytes
+	;				AX to bits 31-16 of block number
+	;				BX to bits 15-0 of block number
+	;               CX number of blocks
+	;
+	; Return: Data Reponse in DL. (00000101) -> Data accepted
+	;
+	; Returns with carry set on timeout
+	;
+card_cmd25:
+	call spi_select
+
+	push ax
+	push bx
+	push cx
+	push bp
+
+	mov dx, bx	; copy BX to DX, since BX is the argument for spi_send_X
+
+	; Send CMD25
+	SPI_SEND_BYTE 0x40 + 25
+
+	mov bx, ax
+	call spi_send_word
+	mov bx, dx	; Get original BX values
+	call spi_send_word
+
+	SPI_SEND_BYTE 0xff	; CRC
+
+	; BX is the block counter
+	mov bx, cx
+
+	; Wait for R1 response
+	mov cx, CARD_MAX_BYTES_UNTIL_R1
+.poll_for_r1:
+	call spi_receive_byte	; Returns in AL
+	and al, al
+	jns .got_r1
+	loop .poll_for_r1
+
+	ERR_TRACE '7'
+
+	; Oups, R1 never came. Return with carry set..
+	mov dl, 0xff		; Return value for R1 timeout
+	call spi_deselect
+	stc
+	jmp .done
+
+.got_r1:
+
+	; Ok, now there must be at least one dummy byte before we send our data packet!
+	call spi_receive_byte
+	call spi_receive_byte
+
+.next_block:
+
+	; Send data token
+	SPI_SEND_BYTE 0xFC
+
+	; Send our data!
+	push ds
+	mov bp, si
+	mov ax, es
+	mov ds, ax
+%ifdef NO_UNROLL_WRITE512
+	mov cx, 512
+	call spi_txbytes	; Source= DS:BP, Length=CX
+%else
+	call spi_tx512bytes	; Source= DS:BP
+%endif
+	pop ds
+
+	; Send a fake CRC (TODO : Compute CRC?)
+	;mov bx, 0x7777	; Just use whatever is in BX, we need
+	; to preserve BX (block counter)
+	call spi_send_word
+
+	; Data response and busy polling...
+	mov cx, CARD_MAX_BYTES_UNTIL_DATA_RESPONSE_TOKEN
+.poll_for_data_response:
+	call spi_receive_byte
+	; The data response token has the xxx0sss1 format
+	;
+	; sss is the status. 010 means data accepted.
+	;
+	; Detect the token by looking at the fixed bits
+	mov ah, al	; Keep the token intact in AL
+	and ah, 0x11; Isolate the two bits.
+	jnz .got_data_response	; Should be 01
+	loop .poll_for_data_response
+
+	; Oups, no data response...
+	ERR_TRACE '8'
+	mov dl, 0x1F	; return value for token timeout
+	call spi_deselect
+	stc
+	jmp .done
+
+
+.got_data_response:
+	and al, 0x1F	; Keep only known bits
+	mov dl, al		; and let this be the return value.
+
+	mov cx, CARD_MAX_BYTES_WAIT_IDLE
+.wait_idle:
+	call spi_receive_byte
+	cmp al, 0xff
+	je .idle
+	loop .wait_idle
+
+	; Oups, card still busy....
+	ERR_TRACE '9'
+	mov dl, 0x2F		; return value for busy timeout
+	call spi_deselect
+	stc
+	jmp .done
+
+.idle:
+
+	; Decrement block count
+	dec bx
+	jnz .next_block ; More to go?
+
+	; Send a stop transaction token
+	SPI_SEND_BYTE 0xFD
+
+	; Read two extra byte to be safe
+	call spi_receive_byte
+	call spi_receive_byte
+
+	mov cx, CARD_MAX_BYTES_WAIT_IDLE
+.final_wait_idle:
+	call spi_receive_byte
+	cmp al, 0xff
+	je .final_idle
+	loop .final_wait_idle
+
+	; Infinitely busy?
+	ERR_TRACE 'A'
+	mov dl, 0x2F		; return value for busy timeout
+	call spi_deselect
+	stc
+	jmp .done
+
+
+.final_idle:
+
+	clc	; Clear Carry (no timeout)
+
+	call spi_receive_byte
+	call spi_deselect
+	call spi_receive_byte
+
+.done:
+
+	pop bp
+	pop cx
+	pop bx
+	pop ax
+
+	ret
+
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
 	; card_cmd8 : Send CMD0 and check for R7 reply.
 	;
 	; Arguments: BP to buffer of at least 6 bytes
