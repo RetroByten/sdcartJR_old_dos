@@ -117,14 +117,7 @@ spi_justclock:
 	ret
 
 
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	;
-	; spi_receive_byte : Transmit one dummy (0xFF) byte and receive one byte
-	;
-	; Arguments: None
-	; Returns: Byte in AL. Garbage in AH.
-	;
-spi_receive_byte:
+%macro SPI_RECEIVE_BYTE 0
 	push ds
 	push si
 
@@ -146,6 +139,17 @@ spi_receive_byte:
 
 	pop si
 	pop ds
+%endmacro
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; spi_receive_byte : Transmit one dummy (0xFF) byte and receive one byte
+	;
+	; Arguments: None
+	; Returns: Byte in AL. Garbage in AH.
+	;
+spi_receive_byte:
+	SPI_RECEIVE_BYTE
 	ret
 
 
