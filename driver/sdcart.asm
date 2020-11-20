@@ -371,6 +371,13 @@ command_media_check:
 
 	call card_init
 	jc .failed
+	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_IS_MMC,.is_mmc
+.not_mmc:
+	MESSAGE "SD card inserted"
+	jmp .scan_partitions
+.is_mmc:
+	MESSAGE "MMC card inserted"
+.scan_partitions:
 	call partition_scan
 	jc .failed
 	call read_cid
