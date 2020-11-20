@@ -232,6 +232,12 @@ cmd_clear:
 	ret
 
 
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; cmd_findFirst: Find the first partition and display its offset.
+	;
+	; This was for testing before integration into sdcart.sys
+	;
 cmd_findFirst:
 	mov bp, tmpbuf
 	call mbr_read
@@ -262,8 +268,6 @@ cmd_findFirst:
 
 .done:
 	ret
-
-
 
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1232,4 +1236,3 @@ dos_minor: resb 1
 tmpstr: resb 10
 tmpbuf: resb 512
 mbrbuf: resb 512
-

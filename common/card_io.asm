@@ -309,6 +309,8 @@ card_readSectors:
 	; card_writeSectors :
 	;
 	; Input: dword in AX..BX - same order as geo2block
+	;                         AH AL BH BL
+	;                         31........0
 	;        CX is sector count
 	;		 ES:SI Source buffer
 	;
