@@ -1,6 +1,9 @@
 Release v02 : 2020-11-??
 	- Read speed increased from 33 kB/s to 43 kB/s, thanks to suggestions from
 	  Trixter and to the use of the "Multiple Block Read" card commands.
+	- Write speed increased thanks to unrolling and the use of "Multiple Block
+	  Write" card commands. (max seen: 35 kB/s on an MMC card)
+	- sdcart.sys : Display the type of card detected (MMC or SD) during media check
 
 Release v01 : 2020-11-17
 	- Initial release
