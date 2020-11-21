@@ -810,6 +810,8 @@ card_cmd25:
 	push cx
 	push bp
 
+	mov bp, si
+
 	mov dx, bx	; copy BX to DX, since BX is the argument for spi_send_X
 
 	; Send CMD25
@@ -854,7 +856,6 @@ card_cmd25:
 
 	; Send our data!
 	push ds
-	mov bp, si
 	mov ax, es
 	mov ds, ax
 %ifdef NO_UNROLL_WRITE512
@@ -911,6 +912,8 @@ card_cmd25:
 	jmp .done
 
 .idle:
+
+	add bp, 512	; Advance the buffer position by one sector
 
 	; Decrement block count
 	dec bx
