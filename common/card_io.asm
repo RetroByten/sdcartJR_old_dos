@@ -317,16 +317,61 @@ card_readSectors:
 	; Returns with carry set on timeout.
 	;
 	; TODO : Support block-adressed cards
-	; TODO : Try using the multiple-write block command (CMD25)
 	;
 card_writeSectors:
+	cmp cx, 1
+	je .write_single_sector
+
+	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_IS_MMC, .multi_block_write_mmc
+
+	;;; Write multiple block using CMD25, for SD cards
+	;
+.multi_block_write_sd:
+	push ax
+	push bx
+	push dx
+	call blockToByteAddress
+	call card_cmd25
+	pop dx
+	pop bx
+	pop ax
+	ret
+
+	;;; Write multiple blocks for MMC (use a set block count command)
+.multi_block_write_mmc:
+	push ax
+	push bx
+	push dx
+
+%if 0
+	; Fails on my test MMC card.. But appears to work anyway...
+	; Maybe it depends on the spec revision the card complies to?
+	push ax ; Preserve the block number
+	call card_cmd23	; Set block count (arg is CX)
+	mov dl, al ; Copy error code
+	pop ax
+	jc .set_block_count_failed
+%endif
+	call blockToByteAddress
+	call card_cmd25
+	jmp .multi_block_mmc_done
+.set_block_count_failed:
+.multi_block_mmc_done:
+	pop dx
+	pop bx
+	pop ax
+	ret
+
+
+	;;; Original implementation with repeated card_cmd24 calls
+	;
+.no_multiple_write:
 	push ax
 	push bx
 	push cx
 	push dx
 	push si
 
-	; Convert to a byte address
 	call blockToByteAddress
 
 .write_next_sector:
@@ -355,6 +400,18 @@ card_writeSectors:
 	pop ax
 	ret
 
+	;;; Write a single sector ;;;
+	;
+.write_single_sector:
+	push ax
+	push bx
+	push dx
+	call blockToByteAddress
+	call card_cmd24
+	pop dx
+	pop bx
+	pop ax
+	ret
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
