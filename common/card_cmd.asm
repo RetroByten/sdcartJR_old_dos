@@ -45,6 +45,7 @@ section .text
 
 
 %ifdef TRACE_ERRORS
+%warning Error tracing is ON
 %macro ERR_TRACE 1
 push dx
 mov dl, 'E'
@@ -631,6 +632,8 @@ card_cmd23:
 	and al, al
 	jns .got_r1	; Ah ha!
 	loop .readanotherbyte
+
+	ERR_TRACE 'k'
 
 	; Oups, R1 never came our way. Return with carry set...
 	call spi_deselect
