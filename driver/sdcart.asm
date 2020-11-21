@@ -31,7 +31,10 @@ bits 16
 ; The unrolled 512-byte spi receive function is faster (~40 kB/s instead of 33 kB/s)
 ; but uses an additional 4.5K of memory.
 %undef NO_UNROLL_READ512
+; Roughtly the same tradeoff for writes.
+%undef NO_UNROLL_WRITE512
 
+%undef TRACE_ERRORS
 %undef TRACE_CARD_INIT
 %undef TRACE_READS
 %undef TRACE_COMMANDS
@@ -95,7 +98,6 @@ or byte [cs:flags], %1
 %macro CLR_CARD_IO_FLAGS 0
 mov byte [cs:flags], 0
 %endmacro
-
 
 %include 'strutil.asm'
 %include 'spi.asm'
@@ -208,7 +210,7 @@ _interrupt:
 	; command_init: Subroutine for device driver command 0: INIT
 	;
 command_init:
-	printStringLn "SD-Cart JR v0.9"
+	printStringLn "sdcart.sys v0.10"
 	printStringLn "By Raphael Assenat"
 
 %ifdef ASK_INSTALL
