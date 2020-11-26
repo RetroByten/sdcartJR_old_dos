@@ -4,6 +4,11 @@ Release v02 : 2020-11-??
 	- Write speed increased thanks to unrolling and the use of "Multiple Block
 	  Write" card commands. (max seen: 35 kB/s on an MMC card)
 	- sdcart.sys : Display the type of card detected (MMC or SD) during media check
+	- sdpart.com : Now display the geometry the SD-Cart BIOS will use for the
+	  card. (Computed from the card size)
+	- sdpart.com : When displaying partition information, also show the CHS numbers
+	  as is, accompanied by which block they correspond to, given the geometry
+	  the SD-Cart BIOS will use.
 
 Release v01 : 2020-11-17
 	- Initial release
