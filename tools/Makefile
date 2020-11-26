@@ -11,7 +11,7 @@ sy.com: sy.asm
 iotest.com: iotest.asm
 	$(NASM) $< -fbin -o $@
 
-sdpart.com: sdpart.asm chs2lba.asm strutil.asm itoa.asm hexdump.asm card_io.asm card_cmd.asm spi.asm
+sdpart.com: sdpart.asm chs2lba.asm strutil.asm print16.asm hexdump.asm card_io.asm card_cmd.asm spi.asm
 	$(NASM) $< -fbin -o $@
 
 clean:

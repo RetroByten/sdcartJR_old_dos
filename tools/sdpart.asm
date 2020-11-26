@@ -33,7 +33,7 @@ entry:
 
 %include 'strutil.asm'
 %include 'hexdump.asm'
-%include 'itoa.asm'
+%include 'print16.asm'
 
 ;%define NO_UNROLL_READ512
 %include 'spi.asm'
@@ -1157,25 +1157,6 @@ printMID:
 	ret
 
 
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	;
-	; printInt16: Print a 16 bit integer in decimal
-	;
-	;	CX: Integer
-	;
-	; Does not output a newline.
-	;
-printInt16:
-	push bx
-	push dx
-	mov bx, tmpstr
-	call itoa
-	mov dx, tmpstr
-	call putstring
-	pop dx
-	pop bx
-	ret
-
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
@@ -1233,6 +1214,5 @@ last_sector: resw 2
 last_sect_cyl: resw 1
 dos_major: resb 1
 dos_minor: resb 1
-tmpstr: resb 10
 tmpbuf: resb 512
 mbrbuf: resb 512
