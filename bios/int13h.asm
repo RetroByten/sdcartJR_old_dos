@@ -44,6 +44,7 @@ section .text
 %define GEO_SECTORS_PER_TRACK	63
 %define GEO_HEADS				16
 
+%define FIXED_GEOMETRY
 %include 'chs2lba.asm'
 
 %define CMOS_DRIVE_TYPE	0

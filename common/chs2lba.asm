@@ -9,6 +9,10 @@
 	; CX: Track and sector number
 	; DH: Head number
 	;
+	; Also, unless FIXED_GEOMETRY is defined:
+	;   DS:SI: Number of heads [word]
+	;   DS:SI+2: Sectors per track [word]
+	;
 	; Output: 32-bit value in AH AL BH BL
 	;                         31........0
 	;
@@ -51,13 +55,22 @@ geo2block:
 
 	mov ax, cx			; Load cylinder number in AX
 
+%ifdef FIXED_GEOMETRY
 	mov cx, GEO_HEADS
+%else
+	mov cx, [ds:si]	; Max 256
+%endif
 	mul cx				; Multiply by number of heads
 	pop cx				; Retreive head number from stack
 	add ax, cx			; Add to current address
 	; note: Max 1024 sectors and 16 heads = 16384. Fits in AX, DX still zero.
 
+%ifdef FIXED_GEOMETRY
 	mov cx, GEO_SECTORS_PER_TRACK
+%else
+	mov cl, [ds:si + 2]	; Max 63
+	xor ch, ch
+%endif
 	mul cx							; now this uses DX!
 	pop cx							; Retreive Sector number
 	add ax, cx						; Add sector
