@@ -54,7 +54,7 @@ mov byte [card_flags], 0
 %endmacro
 
 
-%define TRACE_ERRORS
+%undef TRACE_ERRORS
 %include 'card_io.asm'
 
 ;%define TRACE_CARD_INIT
@@ -67,6 +67,8 @@ mov byte [card_flags], 0
 %define GEO_SECTORS_PER_TRACK	63
 %define GEO_HEADS				16
 %include 'chs2lba.asm'
+
+%include 'chsfitter.asm'
 
 main:
 	call printBanner
@@ -278,6 +280,14 @@ cmd_create_max32m_part:
 
 	printString "Computing last sector... "
 
+	; geo2block requires DS:SI pointing to two words: The number of heads,
+	; followed by the number of sectors per track.
+	;
+	; This fake geometry will have been determined by the chs_fit call already
+	; and be stored in a STRUC disk_geometry.
+	;
+	mov si, geometry + disk_geometry.heads
+
 	; First sector is the next track after the MBR
 	mov dh, 0	; Head 0
 	mov cx, 0x0101	; CX is as int13. Start at sector 1, track 1
@@ -480,8 +490,49 @@ printPartitionInfo:
 	;; Display range according to CHS fields ;;
 	printString "    CHS: "
 
+	; Cylinder
+	mov cl, [si + 3] ; Bits 7-0
+	mov ch, [si + 2] ; Bits 9-8 (at bits 7-6)
+	rol ch, 1
+	rol ch, 1
+	and ch, 3 ; Clear sector bits
+	call printInt16
+	printString ","
+	; Head
+	mov cl, [si + 1]
+	xor ch, ch
+	call printInt16
+	printString ","
+	; Sector
+	mov cl, [si + 2]
+	and cx, 0x3f	; Keep only sector bits (5-0)
+	call printInt16
+
+	printString "-"
+
+	; Cylinder
+	mov cl, [si + 3 + 4] ; Bits 7-0
+	mov ch, [si + 2 + 4] ; Bits 9-8 (at bits 7-6)
+	rol ch, 1
+	rol ch, 1
+	and ch, 3 ; Clear sector bits
+	call printInt16
+	printString ","
+	; Head
+	mov cl, [si + 1 + 4]
+	xor ch, ch
+	call printInt16
+	printString ","
+	; Sector
+	mov cl, [si + 2 + 4]
+	and cx, 0x3f	; Keep only sector bits (5-0)
+	call printInt16
+
+	;; Convert those CHS figures to LBA using
+	; the SD-Cart geometry.
+
 	;	Range
-	printString "blocks "
+	printString " ("
 
 	mov dh, [si + 1]	; Head
 	mov cx, [si + 2]	; Cylinder and sector
@@ -501,7 +552,7 @@ printPartitionInfo:
 	mov dx, bx
 	call printHexWord
 
-	call newline
+	printStringLn ")"
 
 	;; Display range according to LBA fields
 	printString "    LBA: "
@@ -742,6 +793,7 @@ readAndPrintCardInfo:
 	push cx
 	push dx
 	push di
+	push si
 	push es
 	push bp
 
@@ -1067,6 +1119,19 @@ readAndPrintCardInfo:
 	call printHexWord
 	call newline
 
+
+	printString "      SD-Cart geometry: "
+	mov ax, ds
+	mov es, ax
+	mov si, card_total_blocks
+	mov di, geometry
+	call chs_fit
+	call chs_display
+	jmp .geo_ok
+.geo_error:
+	printStringLn "Error"
+.geo_ok:
+
 	clc ; No errror
 	jmp .done
 
@@ -1084,6 +1149,7 @@ readAndPrintCardInfo:
 .done:
 	pop bp
 	pop es
+	pop si
 	pop di
 	pop dx
 	pop cx
@@ -1200,6 +1266,8 @@ default_mbr: incbin "mbr.bin"
 bootsector:
 
 section .bss
+
+geometry: resb disk_geometry.size
 
 card_csd: resb 16
 ; In 512 bytes blocks
