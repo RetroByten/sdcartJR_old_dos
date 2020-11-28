@@ -95,6 +95,9 @@ jnz %2
 %macro SET_CARD_IO_FLAG 1
 or byte [cs:flags], %1
 %endmacro
+%macro CLR_CARD_IO_FLAG 1
+and byte [cs:flags], ~(%1)
+%endmacro
 %macro CLR_CARD_IO_FLAGS 0
 mov byte [cs:flags], 0
 %endmacro
@@ -371,7 +374,12 @@ command_media_check:
 	MESSAGE "Card changed"
 .card_init:
 
+	; card_init returns the card size in AX:BX. Not used, but we need to preserve
+	; the original BX value..
+	push bx
 	call card_init
+	pop bx
+
 	jc .failed
 	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_IS_MMC,.is_mmc
 .not_mmc:
