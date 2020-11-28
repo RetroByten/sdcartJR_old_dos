@@ -9,6 +9,8 @@ Release v02 : 2020-11-??
 	- sdpart.com : When displaying partition information, also show the CHS numbers
 	  as is, accompanied by which block they correspond to, given the geometry
 	  the SD-Cart BIOS will use.
+	- BIOS: The geometry to use is now determined at runtime, based on the size the
+	  card reports.
 
 Release v01 : 2020-11-17
 	- Initial release
