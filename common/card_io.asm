@@ -31,6 +31,7 @@ cpu 8086
 
 %define CARD_IO_FLG_IS_MMC			0x01
 %define CARD_IO_FLG_BLOCK_ADRESSING	0x02
+%define CARD_IO_FLG_IS_SDV2			0x04
 
 section .text
 
@@ -56,11 +57,13 @@ card_powerup:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
+	; card_init : Intialisation sequence.
 	;
+	; Returns card size in blocks in AX:BX (BX is MSW)
+	;
+	; Returns with carry set if init fails. In that case, AX:BX is undefined.
 	;
 card_init:
-	push ax
-	push bx
 	push cx
 	push dx
 	push bp
@@ -184,6 +187,33 @@ card_init:
 	; Use 512 bytes blocks.
 	call card_cmd16
 
+
+	;;; Read the CSD reg and compute the card size from it.
+	; Allocate a buffer for the contents of the CSD reg.
+	;
+	push di
+	push si
+		; borrow stack
+		sub sp, 16
+		mov di, sp
+
+		mov ax, ss
+		mov es, ax
+		; read the CSD regiser to ES:DI
+		call card_readCSD
+
+		mov si, di	; card_getSizes wants it in ES:SI
+		call card_getSize
+		; card_getSize also sets some flags regarding
+		; the card type, and eventually, adressing type.
+
+		; AX:BX contains card size, returned by this subroutine
+
+		add sp, 16 ; free stack
+
+	pop si
+	pop di
+
 	clc
 
 .done:
@@ -192,8 +222,6 @@ card_init:
 	pop bp
 	pop dx
 	pop cx
-	pop bx
-	pop ax
 	ret
 
 
@@ -413,6 +441,7 @@ card_writeSectors:
 	pop ax
 	ret
 
+
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
 	; card_readCID : Read the card CID register
@@ -443,4 +472,229 @@ card_readCSD:
 	call card_cmd9
 	pop ax
 	ret
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; card_getSize: Analyze CSD to determine the card size, in 512 byte blocks
+	;
+	; Arguments:  ES:SI : Pointer to a buffer containing the CSD register
+	;
+	; Returns card size in AX:BX (AX LSW, BX MSW)
+	;
+	; Normally called by card_init
+	;
+card_getSize:
+	push cx
+	push dx
+	push di
+	push bp
+
+	; [0]
+	;   SD                  MMC
+	;   127 CSD_STRUCTURE   CSD_STRUCTURE
+	;   126 CSD_STRUCTURE	CSD_STRUCTURE
+	;   125 reserved        SPEC_VERS
+	;   124 reserved        SPEC_VERS
+	;   123 reserved        SPEC_VERS
+	;   122 reserved        SPEC_VERS
+	;   121 reserved        reserved
+	;	120	reserved        reserved
+	mov al, [es:si + 0]
+	and al, 0xC0
+	rol al, 1
+	rol al, 1
+	; Values for CSD Structure
+	; 0 : SD V1  or MMC 1.0-1.2
+	; 1 : SD V2  or MMC 1.4-2.2
+
+	; Card flags set by card_init
+	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_IS_MMC, .is_mmc
+
+	; Check the version of the CSD structure
+	cmp al, 0
+	je .is_sd_v1
+	cmp al, 1
+
+.is_sd_v2:
+	SET_CARD_IO_FLAG CARD_IO_FLG_IS_SDV2
+
+	; Extract C_SIZE from bit field
+	mov al, [es:si + 9]
+	mov ah, [es:si + 8]
+	mov bl, [es:si + 7]
+	and bx, 0x3f
+
+	; Memory capacity = (C_SIZE+1) * 512 * 1024
+
+	add ax, 1	; Do C_SIZE + 1
+	adc bx, 0
+
+	; We want a 512-byte block count, therefore the * 512 can be dropped;
+	; One thing left to do: Multiply by 1024
+
+	; SHL 8		(*256)
+	mov bh, bl
+	mov bl, ah
+	mov ah, al
+	xor al, al
+	; SHL 1 (*512)
+	shl ax, 1	; Shift AX to the left, bit 7 into carry
+	rcl bx, 1	; Shift BX to the left, bit 0 from carry
+	; SHL 1 (*1024)
+	shl ax, 1	; Shift AX to the left, bit 7 into carry
+	rcl bx, 1	; Shift BX to the left, bit 0 from carry
+
+	; Size is already in AX:BX, ready for return.
+	jmp .size_computed
+
+.is_mmc:
+	jmp .decode_v1
+
+.is_sd_v1:
+	CLR_CARD_IO_FLAG CARD_IO_FLG_IS_SDV2
+
+.decode_v1:
+	; Extract C_SIZE from bit field
+	xor cx,cx
+	xor ax,ax
+	mov al, [es:si + 7]
+	shl ax, 1
+	shl ax, 1
+	or cx, ax
+	xor ax, ax
+	mov al, [es:si + 8]
+	rol al, 1
+	rol al, 1
+	and al, 3
+	or cx, ax
+	xor ax, ax
+	mov ah, [es:si + 6]
+	and ah, 3
+	shl ah, 1
+	shl ah, 1
+	or cx, ax
+	;mov [card_csd_csize], cx
+	mov dx, cx ; DX = csd_csize
+
+	; Extract C_MULT from bit field
+	xor cx, cx
+	xor ax, ax
+	mov al, [es:si + 10]
+	rol al, 1 ; Bit 7 -> bit 0
+	and al, 1
+	or cx, ax
+	xor ax, ax
+	mov al, [es:si + 9]
+	and al, 3
+	shl al, 1
+	or cx, ax
+	;mov [card_csd_cmult], cx
+	mov di, cx ; DI = csd_cmult
+
+	; Extract write block size from bit field
+	xor cx, cx
+	xor ax, ax
+	mov al, [es:si + 12]
+	and al, 3
+	shl al, 1
+	shl al, 1
+	or cx, ax
+	xor ax,ax
+	mov al, [es:si + 13]
+	rol al, 1
+	rol al, 1
+	and al, 3
+	or cx, ax
+	;mov [card_csd_block], cx
+	mov bp, cx ; BP = csd_block
+
+%if 0
+	push cx
+	;mov cx, [card_csd_csize]
+	mov cx, dx ; DX holds csd_csize
+	printString "         C_SIZE: "
+	call printInt16
+
+	mov cx, di ; DI holds csd_cmult
+	printString ", CSIZE_MULT: "
+	call printInt16
+
+	mov cx, bp ; BP holds csd_block
+	printString ", WR_BL_LEN: "
+	call printInt16
+	pop cx
+%endif
+
+	; BLOCKNR = (C_SIZE + 1) * MULT
+	mov ax, dx ; DX holds csd_csize
+	add ax, 1
+	xor bx, bx
+
+	; Mult
+	; 0 : 4
+	; 1 : 8
+	; 2 : 16
+	; ...
+	; 7 : 512
+
+	; So mult 0 is << 2
+	shl ax, 1	; May generate a carry
+	rcl bx, 1	; Carry goes in BX
+	shl ax, 1	; May generate a carry
+	rcl bx, 1	; Carry goes in BX
+
+	mov cx, di ; // DI holds csd_cmult
+	and cx, cx
+	jz .shifted
+.shift:
+	shl ax, 1	; May generate a carry
+	rcl bx, 1	; Carry goes in BX
+	loop .shift
+.shifted:
+
+%if 0
+	push dx
+	printString "       N blocks: "
+	mov dx, bx
+	call printHexWord
+	mov dx, ax
+	call printHexWord
+	call newline
+	pop dx
+%endif
+
+	; Now those blocks may be something other than 512 bytes..
+	; WRITE_BL_LEN and READ_BL_LEN (always equal) encode the block
+	; size like this:
+	;
+	; 9 : 512 bytes
+	; 10 : 1024 bytes
+	; 11 : 2048 bytes
+	;
+	; We are to store the 512 bytes block count in card_total_blocks,
+	; so for 1024 bytes we multiply by 2, and for 2048 by 4.
+	;cmp word [card_csd_block], 10
+	cmp bp, 10 ; BP holds csd_block
+	jl .doneBlkMult	; Min 9
+	je .shiftBlk1 ; 10
+	; Max 11
+.shiftBlk2:
+	shl ax, 1
+	rcl bx, 1
+.shiftBlk1:
+	shl ax, 1
+	rcl bx, 1
+.doneBlkMult:
+
+	; Size is already in AX:BX
+
+.size_computed:
+
+	pop bp
+	pop di
+	pop dx
+	pop cx
+	ret
+
 
