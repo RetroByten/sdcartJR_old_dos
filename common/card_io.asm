@@ -36,6 +36,11 @@ cpu 8086
 section .text
 
 
+card_pulseLed:
+	call spi_select
+	call spi_deselect
+	ret
+
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
