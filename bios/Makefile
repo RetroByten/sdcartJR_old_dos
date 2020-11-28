@@ -5,7 +5,7 @@ OUTDIR=../outputs
 
 VPATH=../common
 
-includes=spi.asm card_io.asm card_cmd.asm strutil_bios.asm int13h.asm int19h.asm
+includes=spi.asm card_io.asm card_cmd.asm strutil_bios.asm int13h.asm int19h.asm chs2lba.asm chsfitter.asm print16.asm memory.asm
 
 all: $(OUTDIR)/sdcart.rom
 

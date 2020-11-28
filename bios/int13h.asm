@@ -44,8 +44,9 @@ section .text
 %define GEO_SECTORS_PER_TRACK	63
 %define GEO_HEADS				16
 
-%define FIXED_GEOMETRY
+;%define FIXED_GEOMETRY
 %include 'chs2lba.asm'
+%include 'chsfitter.asm'
 
 %define CMOS_DRIVE_TYPE	0
 
@@ -217,9 +218,53 @@ int13h_fn00:
 ;	pop dx
 ;	pop ax
 
-	call mem_clearFlags
-
+	push ax
+	push bx
+	push si
+	push di
+	push es
+	; Card init returns the card size
 	call card_init
+	jc .skip_chs_compute
+
+.compute_chs:
+	; Put the returned card size on the stack
+	push bx
+	push ax
+	mov si, sp	; 32bit block count argument for chs_fit
+	sub sp, disk_geometry.size
+	mov di, sp  ; STRUC disk_geometry pointer
+	mov ax, ss  ; ES = SS
+	mov es, ax
+	call chs_fit
+
+	; Displaying this only once at boot
+	call memory_testCHSdisplayed
+	jnz .no_chs_display
+	call chs_display
+	call newline
+	call memory_setCHSdisplayed
+.no_chs_display:
+	; TODO : Store it for later use
+	;
+
+.store_chs:
+	; Takes ES:DI, writes it to memory for use later
+	call memory_saveCHS
+
+	; Restore stack used by STRUC disk_geometry and
+	; the card size
+	add sp, disk_geometry.size
+	pop ax
+	pop bx
+
+.skip_chs_compute:
+	pop es
+	pop di
+	pop si
+	pop bx
+	pop ax
+
 	jc .init_failed
 
 .init_ok:
@@ -323,7 +368,15 @@ int13h_fn02:
 	mov bp, ax	; Keep a copy of AX
 	mov di, bx	; Keep a copy of the destination offset
 
+	; geo2block wants DS:SI pointing to number of heads (word)
+	; followed by sectors per track (word).
+	push ds
+	push si
+	MEMORY_GETCHS ds, si
+	add si, disk_geometry.heads ; Offset within STRUC disk_geometry
 	call geo2block
+	pop si
+	pop ds
 
 %ifdef TRACE_INT
 	call traceBlockNo
@@ -449,7 +502,16 @@ int13h_fn03:
 	mov bp, ax	; Keep a copy of AX (sector count)
 	mov si, bx	; Keep a copy of the source offset
 
+	push ds
+	push si
+	; geo2block wants DS:SI pointing to number of heads (word)
+	; followed by sectors per track (word).
+	MEMORY_GETCHS ds, si
+	add si, disk_geometry.heads ; Offset within STRUC disk_geometry
 	call geo2block
+	pop si
+	pop ds
+
 	call blockToByteAddress		; TODO : Only for byte addressed cards
 
 	; AX:BX now points to 32 bit block. We need the block
@@ -555,6 +617,10 @@ int13h_fn03:
 int13h_fn04:
 	; TODO : Verify sectors by reading from the card and dropping the data?
 	; For now, fake an instant success...
+
+	; This call makes the led blink for a very short instant.
+	call card_pulseLed
+
 	mov ah, 0x00
 	jmp int13_iret_clc
 
@@ -636,6 +702,8 @@ int13h_fn07:
 	; int13h_fn08: Get Current Drive Parameters
 	;
 int13h_fn08:
+	push es
+	push si
 
 	push ds
 		mov ax, 0x40
@@ -646,10 +714,29 @@ int13h_fn08:
 	pop ds
 	mov ah, STATUS_NO_ERROR
 	mov bl, CMOS_DRIVE_TYPE
+%if 0
 	mov cx, (((GEO_CYLINDERS-1) & 0xFF) << 8) | (((GEO_CYLINDERS-1) & 0x300) >> 2) | GEO_SECTORS_PER_TRACK
 	mov dh, GEO_HEADS - 1	; returned value is max head number
+%endif
+
+	; Sets ES:SI to the location of STRUC disk_geometry
+	call memory_getCHS
+
+	mov cx, [es:si + disk_geometry.cylinders]
+	dec cx ; We must return the maximum value, not the count
+	xchg cl,ch ; CH to contain the low bits of cylinder count
+	ror cl, 1 ; Cylinder count bits 9-10 (now CL 1-0) must be in CL bits 7-6
+	ror cl, 1
+	and cl, 0xC0
+	or cl, [es:si + disk_geometry.sectors] ; Sectors per track (1-63)
+
+	mov dh, [es:si + disk_geometry.heads]
+	dec dh ; return value is max head number, not head count
+
 	mov dl, 1	; TODO : Floppies + Hard drives???
 
+	pop si
+	pop es
 
 	jmp int13_iret_clc
 
@@ -698,17 +785,6 @@ int13h_fn1a:
 	jmp int13_iret_stc
 
 
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	;
-	; cmd1_hook : Called by card_init to indicate CMD1 was used. (MMC card)
-	;
-cmd1_hook:
-	push ax
-	call mem_getFlags
-	or al, MEMFLAG_CMD1
-	call mem_setFlags
-	pop ax
-	ret
 
 
 section .data

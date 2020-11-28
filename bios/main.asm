@@ -52,12 +52,13 @@ entry:
 ; This project does not use an external linker. Code from other files is
 ; simply included.
 %include 'strutil_bios.asm'
+%include 'print16.asm'
 %include 'spi.asm'
 
 ; This provides some macros used card_io to store flags
 %include 'memory.asm'
 
-%define TRACE_ERRORS
+%undef TRACE_ERRORS
 %include 'card_io.asm'
 
 ;%define TRACE_CARD_INIT

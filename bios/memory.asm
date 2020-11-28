@@ -7,64 +7,69 @@
 
 %define INT_USED_TO_STORE_DATA	0x4D
 
-; The four bytes there are used as such.
+; The eight bytes there are used as such.
 ;
-; [0] : Flags
-;       - Bit 0: CMD1 used
+; [0] : Flags (see card_io.asm)
+; [1] : Other status
+;       Bit 0: CHS displayed
 ;
-; [1-3] : Not used
+; [2-3] : cylinders
+; [4-5] : heads
+; [6-7] : sectors per track
+; The above matches STRUC disk_geometry
 
-%define MEMFLAG_CMD1	0x01
+%define MEM_STATUS_CHS_DISPLAYED	1
 
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	;
-	; mem_clearFlags : Clear all the flags.
-	;
-	;
-mem_clearFlags:
+memory_testCHSdisplayed:
 	push ax
-	mov al, 0x00
-	call mem_setFlags
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	test byte [INT_USED_TO_STORE_DATA * 4 + 1], MEM_STATUS_CHS_DISPLAYED
+	pop ds
+	pop ax
+	ret
+
+memory_setCHSdisplayed:
+	push ax
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	or byte [INT_USED_TO_STORE_DATA * 4 + 1], MEM_STATUS_CHS_DISPLAYED
+	pop ds
+	pop ax
+	ret
+
+	; ES:DI -> Memory
+memory_saveCHS:
+	push ax
+	push ds
+	xor ax, ax
+	mov ds, ax
+%assign off 0
+%rep 3
+	mov ax, [es:di + off * 2]
+	mov [INT_USED_TO_STORE_DATA * 4 + 2 + off * 2], ax
+%assign off off+1
+%endrep
+	pop ds
 	pop ax
 	ret
 
 
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	;
-	; mem_setFlags : Save one byte of flags to a memory location
-	;
-	; AL : New value for flags
-	;
-mem_setFlags:
-	push ds
-
-	push ax
-	xor ax, ax	; Segment 0000
-	mov ds, ax
-	pop ax
-
-	mov [INT_USED_TO_STORE_DATA * 4], al
-
-	pop ds
+	; Set ES:SI to location of STRUC disk_geometry
+memory_getCHS:
+	mov si, 0
+	mov es, si
+	mov si, INT_USED_TO_STORE_DATA * 4 + 2
 	ret
 
-
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	;
-	; mem_getFlags : Retrieve one byte of flags from a memory location
-	;
-	; Return:
-	;
-	; 	AH : Clearned
-	; 	AL : Flags
-	;
-mem_getFlags:
-	push ds
-	xor ax, ax	; Segment 0000
-	mov ds, ax
-	mov al, [INT_USED_TO_STORE_DATA * 4]
-	pop ds
-	ret
+	;; Arguments SegmentReg, OffsetReg
+%macro MEMORY_GETCHS 2
+	mov %2, 0
+	mov %1, %2
+	mov %2, INT_USED_TO_STORE_DATA * 4 + 2
+%endmacro
 
 
 ; card_io.asm requires some macros to store information
@@ -73,6 +78,8 @@ mem_getFlags:
 %macro JMP_CARD_IO_FLAG_SET 2
 	push ax
 	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
 	test byte [INT_USED_TO_STORE_DATA * 4], %1
 	pop ds
 	pop ax
@@ -84,6 +91,15 @@ mem_getFlags:
 	xor ax, ax	; Segment 0000
 	mov ds, ax
 	or byte [INT_USED_TO_STORE_DATA * 4], %1
+	pop ds
+	pop ax
+%endmacro
+%macro CLR_CARD_IO_FLAG 1
+	push ax
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	and byte [INT_USED_TO_STORE_DATA * 4], ~(%1)
 	pop ds
 	pop ax
 %endmacro
