@@ -536,7 +536,12 @@ printPartitionInfo:
 
 	mov dh, [si + 1]	; Head
 	mov cx, [si + 2]	; Cylinder and sector
+	push si
+	; geo2block requires DS:SI pointing to two words: The number of heads,
+	; followed by the number of sectors per track.
+	mov si, geometry + disk_geometry.heads
 	call geo2block
+	pop si
 	mov dx, ax
 	call printHexWord
 	mov dx, bx
@@ -546,7 +551,12 @@ printPartitionInfo:
 
 	mov dh, [si + 5]	; Head
 	mov cx, [si + 6]	; Cylinder and sector
+	push si
+	; geo2block requires DS:SI pointing to two words: The number of heads,
+	; followed by the number of sectors per track.
+	mov si, geometry + disk_geometry.heads
 	call geo2block
+	pop si
 	mov dx, ax
 	call printHexWord
 	mov dx, bx
