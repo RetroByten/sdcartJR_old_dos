@@ -49,6 +49,9 @@ jnz %2
 %macro SET_CARD_IO_FLAG 1
 or byte [card_flags], %1
 %endmacro
+%macro CLR_CARD_IO_FLAG 1
+and byte [card_flags], ~(%1)
+%endmacro
 %macro CLR_CARD_IO_FLAGS 0
 mov byte [card_flags], 0
 %endmacro
@@ -70,6 +73,11 @@ mov byte [card_flags], 0
 
 %include 'chsfitter.asm'
 
+; Define to display the raw content of the CSD register
+%undef DISPLAY_RAW_CSD
+; Define to display the raw content of the CID register
+%undef DISPLAY_RAW_CID
+
 main:
 	call printBanner
 	call readAndPrintDosVersion
@@ -80,6 +88,11 @@ main:
 
 	call card_init
 	jc .init_failed
+
+	; Card init returns the card size. Save it!
+	mov [card_total_blocks], ax
+	mov [card_total_blocks+2], bx
+
 	printStringLn "OK"
 
 
@@ -858,7 +871,7 @@ readAndPrintCardInfo:
 
 	call newline
 
-%if 0
+%ifdef DISPLAY_RAW_CID
 	printString "      CID: "
 	mov bp, card_cid
 	mov cx, 16
@@ -933,190 +946,25 @@ readAndPrintCardInfo:
 	call card_readCSD
 	jc .csd_err
 
-%if 0
+%ifdef DISPLAY_RAW_CSD
 	printString "      CSD: "
 	mov bp, card_csd
 	mov cx, 16
 	call hexdump
 %endif
 
-	; [0]
-	;   SD                  MMC
-	;   127 CSD_STRUCTURE   CSD_STRUCTURE
-	;   126 CSD_STRUCTURE	CSD_STRUCTURE
-	;   125 reserved        SPEC_VERS
-	;   124 reserved        SPEC_VERS
-	;   123 reserved        SPEC_VERS
-	;   122 reserved        SPEC_VERS
-	;   121 reserved        reserved
-	;	120	reserved        reserved
-	mov al, [card_csd + 0]
-	and al, 0xC0
-	rol al, 1
-	rol al, 1
-	; Values for CSD Structure
-	; 0 : SD V1  or MMC 1.0-1.2
-	; 1 : SD V2  or MMC 1.4-2.2
-
-	; Card flags set by card_init
+.display_type:
 	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_IS_MMC, .is_mmc
-
-	; Check the version of the CSD structure
-	cmp al, 0
-	je .is_sd_v1
-	cmp al, 1
-
-.is_sd_v2:
+	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_IS_SDV2 , .is_sdv2
+.is_sdv1:
+	printStringLn "      SD Version 1.0"
+	jmp .display_type_done
+.is_sdv2:
 	printStringLn "      SD Version 2.0"
-
-	; Extract C_SIZE from bit field
-	xor cx, cx
-	xor ax, ax
-	mov al, [card_csd + 9]
-	mov ah, [card_csd + 8]
-	mov bl, [card_csd + 7]
-	and bx, 0x3f
-	mov [card_total_blocks], ax
-	mov [card_total_blocks+2], bx
-
-	jmp .size_computed
-
+	jmp .display_type_done
 .is_mmc:
 	printStringLn "      MMC card"
-	jmp .decode_v1
-
-.is_sd_v1:
-	printStringLn "      SD Version 1.0"
-
-.decode_v1:
-	; Extract C_SIZE from bit field
-	xor cx,cx
-	xor ax,ax
-	mov al, [card_csd + 7]
-	shl ax, 1
-	shl ax, 1
-	or cx, ax
-	xor ax, ax
-	mov al, [card_csd + 8]
-	rol al, 1
-	rol al, 1
-	and al, 3
-	or cx, ax
-	xor ax, ax
-	mov ah, [card_csd + 6]
-	and ah, 3
-	shl ah, 1
-	shl ah, 1
-	or cx, ax
-	mov [card_csd_csize], cx
-
-	; Extract C_MULT from bit field
-	xor cx, cx
-	xor ax, ax
-	mov al, [card_csd + 10]
-	rol al, 1 ; Bit 7 -> bit 0
-	and al, 1
-	or cx, ax
-	xor ax, ax
-	mov al, [card_csd + 9]
-	and al, 3
-	shl al, 1
-	or cx, ax
-	mov [card_csd_cmult], cx
-
-	; Extract write block size from bit field
-	xor cx, cx
-	xor ax, ax
-	mov al, [card_csd + 12]
-	and al, 3
-	shl al, 1
-	shl al, 1
-	or cx, ax
-	xor ax,ax
-	mov al, [card_csd + 13]
-	rol al, 1
-	rol al, 1
-	and al, 3
-	or cx, ax
-	mov [card_csd_block], cx
-
-%if 0
-	mov cx, [card_csd_csize]
-	printString "         C_SIZE: "
-	call printInt16
-
-	mov cx, [card_csd_cmult]
-	printString ", CSIZE_MULT: "
-	call printInt16
-
-	mov cx, [card_csd_block]
-	printString ", WR_BL_LEN: "
-	call printInt16
-%endif
-
-	; TODO : Compute card_total_blocks
-
-	; BLOCKNR = (C_SIZE + 1) * MULT
-	mov ax, [card_csd_csize]
-	add ax, 1
-	xor bx, bx
-
-	; Mult
-	; 0 : 4
-	; 1 : 8
-	; 2 : 16
-	; ...
-	; 7 : 512
-
-	; So mult 0 is << 2
-	shl ax, 1	; May generate a carry
-	rcl bx, 1	; Carry goes in BX
-	shl ax, 1	; May generate a carry
-	rcl bx, 1	; Carry goes in BX
-
-	mov cx, [card_csd_cmult]
-	and cx, cx
-	jz .shifted
-.shift:
-	shl ax, 1	; May generate a carry
-	rcl bx, 1	; Carry goes in BX
-	loop .shift
-.shifted:
-
-%if 0
-	printString "       N blocks: "
-	mov dx, bx
-	call printHexWord
-	mov dx, ax
-	call printHexWord
-	call newline
-%endif
-
-	; Now those blocks may be something other than 512 bytes..
-	; WRITE_BL_LEN and READ_BL_LEN (always equal) encode the block
-	; size like this:
-	;
-	; 9 : 512 bytes
-	; 10 : 1024 bytes
-	; 11 : 2048 bytes
-	;
-	; We are to store the 512 bytes block count in card_total_blocks,
-	; so for 1024 bytes we multiply by 2, and for 2048 by 4.
-	cmp word [card_csd_block], 10
-	jl .doneBlkMult	; Min 9
-	je .shiftBlk1 ; 10
-	; Max 11
-.shiftBlk2:
-	shl ax, 1
-	rcl bx, 1
-.shiftBlk1:
-	shl ax, 1
-	rcl bx, 1
-.doneBlkMult:
-	mov [card_total_blocks], ax
-	mov [card_total_blocks + 2], bx
-
-.size_computed:
+.display_type_done:
 
 
 .display_size:
@@ -1136,10 +984,13 @@ readAndPrintCardInfo:
 	mov si, card_total_blocks
 	mov di, geometry
 	call chs_fit
+	jc .geo_imperfect
 	call chs_display
+	call newline
 	jmp .geo_ok
-.geo_error:
-	printStringLn "Error"
+.geo_imperfect:
+	call chs_display
+	printStringLn " (*)"
 .geo_ok:
 
 	clc ; No errror
@@ -1282,9 +1133,7 @@ geometry: resb disk_geometry.size
 card_csd: resb 16
 ; In 512 bytes blocks
 card_total_blocks: resw 2
-card_csd_csize: resw 1
-card_csd_cmult: resw 1
-card_csd_block: resw 1
+
 card_cid: resb 16
 part_type: resb 1
 first_sector: resw 2
