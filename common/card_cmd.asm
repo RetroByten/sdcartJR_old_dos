@@ -102,8 +102,12 @@ card_cmd1:
 	;
 card_cmd59:
 	push bp
+	push ds
+	mov bp, cs
+	mov ds, bp
 	mov bp, _dat_cmd59
 	call card_sendCMD_R1
+	pop ds
 	pop bp
 	ret
 
@@ -136,8 +140,12 @@ card_cmd12:
 	;
 card_cmd16:
 	push bp
+	push ds
+	mov bp, cs
+	mov ds, bp
 	mov bp, _dat_cmd16
 	call card_sendCMD_R1
+	pop ds
 	pop bp
 	ret
 
@@ -153,8 +161,12 @@ card_cmd16:
 	;
 card_cmd9:
 	push bp
+	push ds
+	mov bp, cs
+	mov ds, bp
 	mov bp, _dat_cmd9
 	call card_sendCMD_R1_D16
+	pop ds
 	pop bp
 	ret
 
@@ -170,8 +182,12 @@ card_cmd9:
 	;
 card_cmd10:
 	push bp
+	push ds
+	mov bp, cs
+	mov ds, bp
 	mov bp, _dat_cmd10
 	call card_sendCMD_R1_D16
+	pop ds
 	pop bp
 	ret
 
@@ -180,7 +196,7 @@ card_cmd10:
 	;
 	; card_sendCMD_R1_D16 : Send 6-byte command, check for R1 reply and 16 data bytes.
 	;
-	; BP : Command (6 bytes)
+	; DS:BP : Command (6 bytes)
 	; ES:DI : Destination buffer (16 bytes)
 	;
 	; AL = R1 value
