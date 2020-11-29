@@ -478,133 +478,64 @@ int13h_fn03:
 	;	DL = drive number
 	;	ES:BX = pointer to buffer
 	;
-	;	Returns status in AH
+	;	Returns status in AH, written sector count in AL
 	;	CF=0 on success
 	push bx
 	push cx
-	push dx
 	push si
+	push ds
 
 %ifdef TRACE_INT
 	call trace_fn02_params
 %endif
 
-
-	push ax	; Save AX to retreive sectors to read at the end
-
-	and al, al	; Check number of sectors to write
-	jz .zero_write	; Protect against writing 65535 sectors if zero is received
-
+	; Place sectors to write in CX. Clear CH and check for zero.
+	and al, al
+	jz .zero_write
 
 .nonzero_count:
-
-	xor ah, ah	; Make sure AH is 0
-	mov bp, ax	; Keep a copy of AX (sector count)
-	mov si, bx	; Keep a copy of the source offset
-
-	push ds
-	push si
+	push bx ; Save source buffer
+	push ax	; Save sector count
 	; geo2block wants DS:SI pointing to number of heads (word)
 	; followed by sectors per track (word).
 	MEMORY_GETCHS ds, si
 	add si, disk_geometry.heads ; Offset within STRUC disk_geometry
-	call geo2block
-	pop si
-	pop ds
-
-	call blockToByteAddress		; TODO : Only for byte addressed cards
-
-	; AX:BX now points to 32 bit block. We need the block
-	; count in CX.
-	mov cx, bp	; AL contained the number of sector to read
-	xor ch, ch
-
-.next_block:
-	; card_cmd24 args:
-	;   ES = Source segment
-	;   SI = Source offset
-	;	AX = block number (31-16)
-	;	BX = block number (15-0)
-	; return:
-	;	Carry set on timeout
-	;	DL
-	call card_cmd24
-	cmp dl, 0x05
-	jne .error
-
-	add si, 512	; Advance in buffer
-	add bx, 512	; Increment block number	; TODO : Support block addressed cards
-	adc ax, 0
-
-	loop .next_block
-
-	; all written!
-	jmp .done
-
-
-.timeout:
-	pop bx ; Retreive original AX value
-
-	push ds
-		mov ax, 0x40
-		mov ds, ax
-		mov ah, STATUS_FIXED_DISK_DRV_NOT_READY
-		mov [0x41], ah
-	pop ds
-
-	mov al, 0 ; no sectors were written
-	jmp .return_stc
-
-.error:
-	pop bx ; Retreive original AX value
-	push ds
-		mov ax, 0x40
-		mov ds, ax
-		mov ah, STATUS_SECTOR_NOT_FOUND
-		mov [0x41], ah
-	pop ds
-	mov al, 0 ; no sectors were written
-	jmp .return_stc
-
-
-.zero_write:
-	pop bx ; Retreive original AX value
-	push dx
-		printString "!Z!"
-	pop dx
-	push ds
-		mov ax, 0x40
-		mov ds, ax
-		mov ah, STATUS_BAD_COMMAND
-		mov [0x41], ah
-	pop ds
-	xor al, al	; No sectors were written
-	jmp .return_stc
-
+	call geo2block ; Returns block no. in AX:BX
+	pop cx ; retreive sector count (originally AX)
+	and cx, 0xff ; keep only sector count
+	; card_writeSectors args:
+	;	CX : Sector count
+	; 	ES:SI : Source buffer
+	pop si ; Retreive source buffer (originally BX)
+	call card_writeSectors
+	jc .drv_not_ready
 
 .done:
-	push ds
-		mov ax, 0x40
-		mov ds, ax
-		mov ah, STATUS_NO_ERROR
-		mov [0x41], ah
-	pop ds
-
-	pop bx	; Retreive original AX value
-	mov al, bl	; number of sectors read = request
-
-	; Fallthrough to return_clc below
-
+	mov cx, 0x40
+	mov ds, cx
+	mov ah, STATUS_NO_ERROR
+	mov [0x41], ah
+	; AL still equals requested sectors
 .return_clc:
+	pop ds
 	pop si
-	pop dx
 	pop cx
 	pop bx
 	jmp int13_iret_clc
 
+.zero_write:
+	mov ah, STATUS_BAD_COMMAND
+	jmp .error_common
+.drv_not_ready:
+	mov ah, STATUS_FIXED_DISK_DRV_NOT_READY
+.error_common:
+	mov cx, 0x40
+	mov ds, cx
+	mov [0x41], ah
+	xor al, al ; no sectors were written
 .return_stc:
+	pop ds
 	pop si
-	pop dx
 	pop cx
 	pop bx
 	jmp int13_iret_stc
