@@ -354,117 +354,67 @@ traceBlockNo:
 int13h_fn02:
 	push bx
 	push cx
-	push dx
 	push di
+	push si
+	; DS and BP push/pop is taken care of in _int13h_common and common return code.
 
 %ifdef TRACE_INT
 	call trace_fn02_params
 %endif
 
-
-	push ax	; Save AX to retreive sectors to read at the end
-
-	xor ah, ah	; Make sure AH is 0
-	mov bp, ax	; Keep a copy of AX
-	mov di, bx	; Keep a copy of the destination offset
+	; Save AX/BX before geo2block uses those. Must use registers that do
+	; not contain adressing info..
+	mov bp, bx ; Save destination offset to BP (for card_readSectors later)
+	mov di, ax ; Save sector count
 
 	; geo2block wants DS:SI pointing to number of heads (word)
 	; followed by sectors per track (word).
-	push ds
-	push si
 	MEMORY_GETCHS ds, si
 	add si, disk_geometry.heads ; Offset within STRUC disk_geometry
-	call geo2block
-	pop si
-	pop ds
+	; geo2block args: AL, CH, CL and DH
+	call geo2block ; Return block no. in AX:BX
 
-%ifdef TRACE_INT
-	call traceBlockNo
-%endif
-
-	; AX:BX now points to 32 bit block. We need the block
-	; count in CX.
-	mov cx, bp	; AL contained the number of sector to read
-	xor ch, ch
-
-	push ds
-		mov bp, es
-		mov ds, bp
-		mov bp, di
-		call card_readSectors
-	pop ds
-	jc .timeout
-
-	; Done!
-	jmp .done
-
-.timeout:
-	pop bx ; Retreive original AX value
-
-	push ds
-		mov ax, 0x40
-		mov ds, ax
-		mov ah, STATUS_FIXED_DISK_DRV_NOT_READY
-		mov [0x41], ah
-	pop ds
-
-	mov al, 0 ; no sectors were read
-
-	pop di
-	pop dx
-	pop cx
-	pop bx
-
-	jmp int13_iret_stc
-
-
-.error:
-	pop bx ; Retreive original AX value
-
-	push ds
-		mov ax, 0x40
-		mov ds, ax
-		mov ah, STATUS_SECTOR_NOT_FOUND
-		mov [0x41], ah
-	pop ds
-
-	mov al, 0 ; no sectors were read
-
-	pop di
-	pop dx
-	pop cx
-	pop bx
-
-	jmp int13_iret_stc
+	; card_readSectors arguments
+	;  AX:BX : Start sector computed by geo2block
+	;  CX : Sector count
+	;  DS:BP : Destination buffer
+	mov cx, di ; Retreive saved AX
+	and cx, 0xff ; Only keeep sector count (AL)
+	mov si, es ; DS = ES
+	mov ds, si
+	; BP already = original BX
+	call card_readSectors
+	jc .drv_not_ready
 
 .done:
-	pop bx ; Retreive original AX value
-
-	push ds
-		mov ax, 0x40
-		mov ds, ax
-		mov ah, STATUS_NO_ERROR
-		mov [0x41], ah
-	pop ds
-
-	mov al, bl	; number of sectors read = request
-
-	; fallthrough to return_clc below
-
+	mov ax, di ; Restore original AX
+	mov bx, 0x40
+	mov ds, bx
+	mov ah, STATUS_NO_ERROR
+	mov [0x41], ah
+	; AL still equals sector count
 .return_clc:
+	pop si
 	pop di
-	pop dx
 	pop cx
 	pop bx
 	jmp int13_iret_clc
 
+.drv_not_ready:
+	mov bx, 0x40
+	mov ds, bx
+	mov ah, STATUS_FIXED_DISK_DRV_NOT_READY
+	mov [0x41], ah
+	mov al, 0 ; no sectors were read
+
 .return_stc:
+	pop si
 	pop di
-	pop dx
 	pop cx
 	pop bx
 
 	jmp int13_iret_stc
+
 
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
