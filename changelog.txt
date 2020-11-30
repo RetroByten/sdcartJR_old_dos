@@ -1,4 +1,4 @@
-Release v02 : 2020-11-??
+Release v02 : 2020-11-30
 	- Read speed increased from 33 kB/s to 43 kB/s, thanks to suggestions from
 	  Trixter and to the use of the "Multiple Block Read" card commands.
 	- Write speed increased thanks to unrolling and the use of "Multiple Block
@@ -11,6 +11,8 @@ Release v02 : 2020-11-??
 	  the SD-Cart BIOS will use.
 	- BIOS: The geometry to use is now determined at runtime, based on the size the
 	  card reports.
+
+	Versions: sdpart.com v0.2, sdcart.sys v0.10, bios v0.10
 
 Release v01 : 2020-11-17
 	- Initial release
