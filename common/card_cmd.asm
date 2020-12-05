@@ -312,6 +312,10 @@ card_cmd55:
 	;
 card_acmd41:
 	push bp
+	push ds
+
+	mov bp, cs
+	mov ds, bp
 
 	mov bp, _dat_cmd55
 	call card_sendCMD_R1
@@ -327,6 +331,7 @@ card_acmd41:
 	call card_sendCMD_R1
 
 .error:
+	pop ds
 	pop bp
 	ret
 
@@ -978,6 +983,96 @@ card_cmd25:
 	ret
 
 
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; card_cmd58 : Read OCR
+	;
+	; Sends CMD58 and waits for a R3 response:
+	;
+	;   R1 | OCR[3]
+	;
+	; Arguments: None
+	; Return: Writes R3 first word to AX, second to BX: R3=AH,AL,BH,BL
+	;                                                      31 23 15 7
+	;
+	; Returns with carry set on timeout.
+	;
+card_cmd58:
+	call spi_select
+
+	push cx
+	push dx
+	push bp
+	push ds
+
+	; Send CMD58
+	mov cx, 6
+	mov bp, _dat_cmd58
+	call spi_txbytes
+
+	; The cards sends 0xff until it finally gives the first byte
+	; of R3, which is identical to the single-byte R1 reply.
+	; R1 is easily detected by looking at the most significant bit
+	; that shall be 0.
+	mov cx, CARD_MAX_BYTES_UNTIL_R1
+.readanotherbyte:
+	call spi_receive_byte ; returns in AL
+
+	and al, al
+	jns .got_r1	; Ah ha!
+	loop .readanotherbyte
+
+	; Oups, R1 never came our way. Return with carry set...
+	call spi_deselect
+	stc
+	jmp .done
+
+.got_r1:
+	; Received R1, value is in AL now.
+	;mov [ds:bp], al
+	;inc bp
+
+	; Prepare ES:DI for spi_rxbytes
+	; Destination is the stack
+	push es
+	push di
+
+		mov di, ss
+		mov es, di
+
+		sub sp, 4 ; Allocate space for 4 bytes
+
+			mov di, sp
+			mov cx, 4
+			call spi_rxbytes
+
+		pop ax ; Retrieve 2 bytse
+		pop bx ; Retrieve 2 bytes
+
+		; Fix order
+		xchg ah,al
+		xchg bh,bl
+
+	pop di
+	pop es
+
+	mov cx, 8
+	call spi_justclock
+
+
+	call spi_deselect
+	clc
+
+.done:
+	pop ds
+	pop bp
+	pop dx
+	pop cx
+	; AX and BX are return value
+	ret
+
+
+
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
@@ -1185,5 +1280,6 @@ _dat_cmd10: db 0x40+10, 0, 0, 0, 0x0, 0x1B
 _dat_cmd12: db 0x40+12, 0, 0, 0, 0, 0xFF ; CRC todo
 _dat_cmd16: db 0x40+16, 0, 0, 0x02, 0, 0xFF ; CRC todo
 _dat_cmd55: db 0x40+55, 0, 0, 0, 0, 0xF7
+_dat_cmd58: db 0x40+58, 0, 0, 0, 0, 0xFF ; CRC todo
 _dat_cmd59: db 0x40+59, 0, 0, 0, 0, 0x91
 _dat_amcd41: db 0x40+41, 0x40, 0, 0, 0, 0xE5
