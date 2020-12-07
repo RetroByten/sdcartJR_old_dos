@@ -169,7 +169,25 @@ card_init:
 	call newline
 	pop dx
 %endif
+
+
+.check_adressing:
+	push ax
+	push bx
+	call card_cmd58
+	test ax, 0x4000	; Check for CCS bit
+	pop bx
+	pop ax
+
+	; When bit 30 is set, it is a high capacity card
+	jz .byte_adressed
+
+.block_adressed:
+	SET_CARD_IO_FLAG	CARD_IO_FLG_BLOCK_ADRESSING
 	jmp .init_ok
+.byte_adressed:
+	jmp .init_ok
+
 
 .cmd1_ok:
 
@@ -230,6 +248,20 @@ card_init:
 	ret
 
 
+
+%macro INC_AXBX_PER_ADRESSING 0
+JMP_CARD_IO_FLAG_SET CARD_IO_FLG_BLOCK_ADRESSING, %%byOne
+add bx, 512
+adc ax, 0
+jmp %%done
+%%byOne:
+add bx, 1
+adc ax, 0
+%%done:
+%endmacro
+
+
+
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
 	; card_readSectors :
@@ -259,7 +291,7 @@ card_readSectors:
 	; blocks...
 	push ax
 	push bx
-	call blockToByteAddress
+	call _convertAddress
 	call card_cmd18
 	jc .read_multi_sd_failed
 	; The operating must be stopped with CMD12.
@@ -280,7 +312,7 @@ card_readSectors:
 	; Now read the blocks.
 	push ax
 	push bx
-	call blockToByteAddress
+	call _convertAddress
 	call card_cmd18
 .set_block_count_failed:
 	pop bx
@@ -293,7 +325,7 @@ card_readSectors:
 	push ax
 	push bx
 	push dx
-	call blockToByteAddress
+	call _convertAddress
 	call card_cmd17
 	jc .error_reading_one_sector
 	clc
@@ -313,15 +345,14 @@ card_readSectors:
 	push bp
 
 	; Expand the sector address to a byte address
-	call blockToByteAddress
+	call _convertAddress
 .read_next_sector:
 	mov dx, ax  ; Save AX (will contain cmd17 result code)
 	call card_cmd17
 	jc .error
 	mov ax, dx ; Restore AX
 	; Advance to next block
-	add bx, 512
-	adc ax, 0
+	INC_AXBX_PER_ADRESSING
 	; Advance buffer position
 	add bp, 512
 	loop .read_next_sector
@@ -363,7 +394,7 @@ card_writeSectors:
 	push ax
 	push bx
 	push dx
-	call blockToByteAddress
+	call _convertAddress
 	call card_cmd25
 	pop dx
 	pop bx
@@ -385,7 +416,7 @@ card_writeSectors:
 	pop ax
 	jc .set_block_count_failed
 %endif
-	call blockToByteAddress
+	call _convertAddress
 	call card_cmd25
 	jmp .multi_block_mmc_done
 .set_block_count_failed:
@@ -405,7 +436,7 @@ card_writeSectors:
 	push dx
 	push si
 
-	call blockToByteAddress
+	call _convertAddress
 
 .write_next_sector:
 	call card_cmd24
@@ -413,8 +444,7 @@ card_writeSectors:
 	cmp dl, 0x05
 	jne .error
 	; Advance to next block
-	add bx, 512
-	adc ax, 0
+	INC_AXBX_PER_ADRESSING
 	; Advance buffer position
 	add si, 512
 	loop .write_next_sector
@@ -439,7 +469,7 @@ card_writeSectors:
 	push ax
 	push bx
 	push dx
-	call blockToByteAddress
+	call _convertAddress
 	call card_cmd24
 	pop dx
 	pop bx
@@ -701,5 +731,32 @@ card_getSize:
 	pop dx
 	pop cx
 	ret
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; _convertAddress : Get byte address from a block, it necessary.
+	;
+	; Depending on the CARD_IO_FLG_BLOCK_ADRESSING flag.
+	;
+	; Input: dword in AX..BX - same order as geo2block
+	;
+	; Output: Byte address in AX..BX.
+	;
+_convertAddress:
+	; Do nothing for block-addressed cards
+	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_BLOCK_ADRESSING, .done
+
+	; Convert to byte address
+	; << 8
+	mov ah, al
+	mov al, bh
+	mov bh, bl
+	xor bl, bl
+	; << 1
+	shl bx, 1 ; Bit 7 goes to carry
+	rcl ax, 1 ; carry goes to bit 0
+.done:
+	ret
+
 
 

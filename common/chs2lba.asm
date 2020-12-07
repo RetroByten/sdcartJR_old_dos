@@ -89,23 +89,4 @@ geo2block:
 %endif
 
 
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	;
-	; blockToByteAddress : Get byte address from a block.
-	;
-	; Input: dword in AX..BX - same order as geo2block
-	;
-	; Output: Byte address in AX..BX.
-	;
-blockToByteAddress:
-	; Convert to byte address
-	; << 8
-	mov ah, al
-	mov al, bh
-	mov bh, bl
-	xor bl, bl
-	; << 1
-	shl bx, 1 ; Bit 7 goes to carry
-	rcl ax, 1 ; carry goes to bit 0
-	ret
 
