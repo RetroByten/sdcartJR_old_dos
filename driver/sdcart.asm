@@ -28,17 +28,23 @@ org 0x00
 cpu 8086
 bits 16
 
+
+%ifdef LOWMEM
 ; The unrolled 512-byte spi receive function is faster (~40 kB/s instead of 33 kB/s)
 ; but uses an additional 4.5K of memory.
-%undef NO_UNROLL_READ512
+%define NO_UNROLL_READ512
 ; Roughtly the same tradeoff for writes.
-%undef NO_UNROLL_WRITE512
+%define NO_UNROLL_WRITE512
+%define BANNER_STR "sdcartl.sys v0.11"
+%else
+%define BANNER_STR "sdcart.sys v0.11"
+%endif
 
 %undef TRACE_ERRORS
 %undef TRACE_CARD_INIT
 %undef TRACE_READS
 %undef TRACE_COMMANDS
-%define TRACE_UNIMPLEMENTED_COMMANDS
+%undef TRACE_UNIMPLEMENTED_COMMANDS
 %define INIT_RETRIES 255
 
 %define ASK_INSTALL
@@ -47,6 +53,7 @@ bits 16
 %include 'drv.inc'
 
 %macro MESSAGE 1
+%ifndef LOWMEM
 push ax
 push ds
 mov ax, cs
@@ -54,6 +61,7 @@ mov ds, ax
 printStringLn %1
 pop ds
 pop ax
+%endif
 %endmacro
 
 section .text
@@ -213,8 +221,10 @@ _interrupt:
 	; command_init: Subroutine for device driver command 0: INIT
 	;
 command_init:
-	printStringLn "sdcart.sys v0.10"
+	printStringLn BANNER_STR
+%ifndef LOWMEM
 	printStringLn "By Raphael Assenat"
+%endif
 
 %ifdef ASK_INSTALL
 	printString "Install (y/N)?"
@@ -227,7 +237,9 @@ command_init:
 
 .skip:
 	call newline
+%ifndef LOWMEM
 	printStringLn "Not installing"
+%endif
 	mov byte [es:bx + init_request.num_units], 0
 
 	; Free all memory used by this driver
@@ -252,8 +264,9 @@ command_init:
 
 	mov word [es:bx + init_request.bpb_ptr], bpb_array
 	mov word [es:bx + init_request.bpb_ptr + 2], ax
-
+%ifndef LOWMEM
 	printStringLn "SD-Cart JR Installed"
+%endif
 	jmp _interrupt.cleanup
 
 
@@ -320,6 +333,9 @@ partition_scan:
 	mov [part_type], dl
 	mov [part_off], bx
 	mov [part_off+2], ax
+
+%ifndef LOWMEM
+	; TODO : Add a command-line argument to disable this
 	printString "Found partition type "
 	call printHexByte
 	printString " at "
@@ -328,10 +344,14 @@ partition_scan:
 	mov dx, bx
 	call printHexWord
 	call newline
+%endif
+
 	clc
 	jmp .part_scan_done
 .no_partitions:
+%ifndef LOWMEM
 	printString "No suitable partition found."
+%endif
 	stc
 .part_scan_done:
 
