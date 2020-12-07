@@ -1,3 +1,6 @@
+Release v03 : Soon
+    - Add support for block-addressed cards (ie. > 2GB)
+
 Release v02 : 2020-11-30
 	- Read speed increased from 33 kB/s to 43 kB/s, thanks to suggestions from
 	  Trixter and to the use of the "Multiple Block Read" card commands.
