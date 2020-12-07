@@ -95,6 +95,13 @@ main:
 
 	printStringLn "OK"
 
+	; card_init does read OCR do check if block or byte
+	; addressing is to be used (and sets flags) but does
+	; not keep the value around. Fetch it again to display
+	; it laster.
+	call card_cmd58
+	mov [card_ocr], ax
+	mov [card_ocr+2], bx
 
 	; Read boot sector
 	mov bp, mbrbuf
@@ -884,6 +891,14 @@ readAndPrintCardInfo:
 	mov cx, 4
 	call hexdump
 
+	; Also display the OCR register here..
+	; TODO : Decode it
+	printString ", OCR: "
+	mov dx, [card_ocr]
+	call printHexWord
+	mov dx, [card_ocr + 2]
+	call printHexWord
+
 	call newline
 
 	; CSD-slice		MMC/SDV1		SDV2
@@ -957,15 +972,22 @@ readAndPrintCardInfo:
 	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_IS_MMC, .is_mmc
 	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_IS_SDV2 , .is_sdv2
 .is_sdv1:
-	printStringLn "      SD Version 1.0"
+	printString "      SD Version 1.0"
 	jmp .display_type_done
 .is_sdv2:
-	printStringLn "      SD Version 2.0"
+	printString "      SD Version 2.0"
 	jmp .display_type_done
 .is_mmc:
-	printStringLn "      MMC card"
+	printString "      MMC card"
 .display_type_done:
 
+	; Display addressing on the same line
+	JMP_CARD_IO_FLAG_SET CARD_IO_FLG_BLOCK_ADRESSING, .is_block_addressed
+	printStringLn ", Byte-addressed"
+	jmp .addressing_display_done
+.is_block_addressed:
+	printStringLn ", Block-addressed"
+.addressing_display_done:
 
 .display_size:
 	printString "      Sectors: "
@@ -1133,7 +1155,7 @@ geometry: resb disk_geometry.size
 card_csd: resb 16
 ; In 512 bytes blocks
 card_total_blocks: resw 2
-
+card_ocr: resw 2
 card_cid: resb 16
 part_type: resb 1
 first_sector: resw 2
