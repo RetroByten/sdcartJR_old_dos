@@ -519,50 +519,61 @@ int13h_fn05:
 	push ax
 	push bx
 	push cx
+	push dx
 	push es
 	push si
 
 	and cx, ~0x1F	; Make sure "sector number" bits are ignored.
 	or cx, 1		; Set sector number to 1 for geo2block
 
-	; Source buffer of zeroes ES:SI for card_cmd24
+	; set ES:SI to STRUC disk_geometry
+	call memory_getCHS
+	mov dx, [es:si + disk_geometry.sectors]	; Retrive sectors per track
+
+	; Setup a source buffer of zeroes ES:SI for card_writeSectors
 	mov si, formatted_sector
 	mov bx, ds
 	mov es, bx
 
-	call geo2block	; Compute block number and store in AX, BX for card_cmd24 below
-	call blockToByteAddress
+	call geo2block	; Compute block number and store in AX, BX
 
-	mov cx, GEO_SECTORS_PER_TRACK
+	mov cx, 1	; Sector count
+	; DX = sectors_per_track
 .format_loop:
-	; card_cmd24 args:
-	;   ES = Source segment
-	;   SI = Source offset
-	;	AX = block number (31-16)
-	;	BX = block number (15-0)
-	; return:
-	;	Carry set on timeout
-	;	DL
-	call card_cmd24
-
-	; TODO : Add error handling
+	;  card_writeSectors args:
+	;	AX..BX : Block number
+	;   CX : Sector count
+	;   ES:SI : Source buffer
+	call card_writeSectors
+	jc .error
 
 	; Increment block number
-	add bx, 512	; TODO : Support cards
+	add bx, 1
 	adc ax, 0
 
-	loop .format_loop
+	dec dx
+	jnz .format_loop
 
+.ok:
 	pop si
 	pop es
+	pop dx
 	pop cx
 	pop bx
 	pop ax
-
 	; Return with success.
 	mov ah, 0x00
 	jmp int13_iret_clc
-
+.error:
+	pop si
+	pop es
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	; Return an error
+	mov ah, 0xCC ; write fault
+	jmp int13_iret_stc
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
