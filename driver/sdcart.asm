@@ -72,7 +72,9 @@ section .text
 ;
 device_header:
 	dd -1     ; Pointer to next device
-	dw 0x0000 ; Attributes (bit 15 = 0 for Block device)
+	; Attributes (bit 15 = 0 for Block device)
+	;             bit 1  = 1 to indicate support for >32M partitions)
+	dw 0x0002
 	dw _strategy
 	dw _interrupt
 	db 1
@@ -472,8 +474,16 @@ command_read:
 		mov ds, ax
 
 		mov ax, [es:bx + rwcommand.start]	; Start sector
+		cmp ax, 0xFFFF
+		je .use_lBigSect
 		mov bx, ax
 		xor ax, ax
+		jmp .startSectorKnown
+.use_lBigSect:
+		mov ax, [es:bx + rwcommand.lBigSect]	; Start sector (LSW)
+		mov bx, [es:bx + rwcommand.lBigSect + 2]	; Start sector (MSW)
+		xchg ax, bx ; AX is most significant
+.startSectorKnown:
 
 		; Add the partition offset
 		add bx, [cs:part_off]
@@ -531,8 +541,16 @@ command_write:
 		; cannot set ES just yet (needed below)
 
 		; Prepare address in AX/BX (BX low word, AX high word)
+		cmp word [es:bx + rwcommand.start], 0xffff
+		je .use_lBigSect
 		mov bx, [es:bx + rwcommand.start]	; Start sector
 		xor ax, ax ; Command only has 16-bit sector number..
+		jmp .startSectorKnown
+.use_lBigSect:
+		mov ax, [es:bx + rwcommand.lBigSect]	; Start sector (LSW)
+		mov bx, [es:bx + rwcommand.lBigSect + 2]	; Start sector (MSW)
+		xchg ax, bx ; AX is most significant
+.startSectorKnown:
 
 		; ES not used past this point, set it now.
 		mov es, dx
