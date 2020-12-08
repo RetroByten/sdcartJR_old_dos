@@ -23,7 +23,7 @@ Scans the card to find the first partition and renders it available as a DOS dri
 Installation is a simple matter of adding DEVICE=SDCART.SYS to config.sys.
 
 If you are willing to sacrifice a few kB/s of transfer speed to save memory, SDCARTL.SYS
-is also availale. (It uses approx. 3kB in size instead of 9kB).
+is also available. (It uses approx. 3kB in size instead of 9kB).
 
 
 ### Boot ROM
