@@ -479,6 +479,24 @@ command_read:
 		add bx, [cs:part_off]
 		adc ax, [cs:part_off + 2]
 
+%ifdef TRACE_READS
+		; rXXXXXXXX:XXXX.
+		push dx
+		mov dl, 'r'
+		call putchar
+		mov dx, ax
+		call printHexWord
+		mov dx, bx
+		call printHexWord
+		mov dl, ':'
+		call putchar
+		mov dx, cx
+		call printHexWord
+		mov dl, '.'
+		call putchar
+		pop dx
+%endif
+
 		; AX..BX is the sector number, CX is count, DS:BP destination
 		call card_readSectors
 	pop bx
