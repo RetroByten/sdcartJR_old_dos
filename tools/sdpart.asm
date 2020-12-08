@@ -95,6 +95,9 @@ main:
 
 	printStringLn "OK"
 
+	call readAndPrintCardInfo
+	call newline
+
 	; card_init does read OCR do check if block or byte
 	; addressing is to be used (and sets flags) but does
 	; not keep the value around. Fetch it again to display
@@ -108,11 +111,6 @@ main:
 	call mbr_read
 	jc .boot_read_failed
 
-	; This must run once to compute things like
-	; card_total_blocks - useful later.
-	call readAndPrintCardInfo
-
-	call newline
 
 .prompt:
 	call prompt
