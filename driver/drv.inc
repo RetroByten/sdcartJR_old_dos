@@ -42,13 +42,15 @@ STRUC init_request
 	.header: resb request_header.size
 	.num_units: resb 1 ; Number of units
 	.break_address: resd 1 ; Break address
-	.bpb_ptr: resd 1;
+	.bpb_ptr: resd 1; ALso addr of DEVICE= line in CONFIG.SYS (3.0+)
 ENDSTRUC
 
 STRUC media_check
 	.header: resb request_header.size
 	.media_descriptor: resb 1
 	.return: resb 1
+	; DOS 3+
+	.pfVolId: resw 2
 ENDSTRUC
 
 %define MEDIA_CHECK_RET_CHANGED		0xff
@@ -61,7 +63,9 @@ STRUC rwcommand
 	.addr: resd 1	; Transfer address
 	.count: resw 1	; Sector count
 	.start: resw 1	; Starting sector
-
+	; Extended request
+	.pfVolId: resw 2 ; Output: addr of Volume ID
+	.lBigSect: resw 2 ; 32-bit sector (when .start = 0xffff)
 ENDSTRUC
 
 STRUC buildbpb
