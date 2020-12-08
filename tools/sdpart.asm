@@ -165,7 +165,7 @@ main:
 
 
 .boot_read_failed:
-	printString "Error reading boot secotr"
+	printString "Error reading boot sector"
 	jmp exit
 
 .init_failed:
