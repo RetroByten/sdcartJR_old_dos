@@ -1,5 +1,11 @@
-Release v03 : Soon
+Release v03 : 2020-12-08
     - Add support for block-addressed cards (ie. > 2GB)
+	- Implement >32M partition support in sdcart.sys
+	- Add a "low memory" version of sdcart.sys (sdcartl.sys). Sacrifices speed
+	  for using only approx. 3kb of memory instead of approx. 9kb.
+	- sdpart.com : Display card information before reading the MBR
+
+	Versions: sdpart.com v0.3, sdcart.sys v0.2, bios v0.20
 
 Release v02 : 2020-11-30
 	- Read speed increased from 33 kB/s to 43 kB/s, thanks to suggestions from
