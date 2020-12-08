@@ -762,7 +762,7 @@ readAndPrintDosVersion:
 	; printBanner : Print a banner with the tool name and/or version
 	;
 printBanner:
-	printStringLn "SDpart version 0.2"
+	printStringLn "SDpart version 0.3"
 	printStringLn "Partition tool for SD-Cart JR"
 	ret
 
