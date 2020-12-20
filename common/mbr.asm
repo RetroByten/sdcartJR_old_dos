@@ -21,14 +21,34 @@ section .text
 	;
 	; Requires the card be already initialized and ready
 	;
+	; Returns with carry set on error.
+	;
 mbr_read:
 	push ax
 	push bx
 	push cx
+	push dx
+
+	mov dx, 3 ; Attempts
+.retry:
 	xor ax, ax  ; Address bits 31-16
 	xor bx, bx  ; Address bits 15-0
 	mov cx, 1
 	call card_readSectors
+	jnc .ok
+
+	; Carry is set = read failed. Try again?
+	dec dx
+;	pushf
+;	printStringLn "MBR read retry"
+;	popf
+	jnz .retry
+
+	; Give up, returning with CF set
+	stc
+
+.ok:
+	pop dx
 	pop cx
 	pop bx
 	pop ax
