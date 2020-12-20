@@ -56,8 +56,8 @@ and byte [card_flags], ~(%1)
 mov byte [card_flags], 0
 %endmacro
 
-
-%undef TRACE_ERRORS
+;%define TRACE_CARD_INIT
+;%define TRACE_ERRORS
 %include 'card_io.asm'
 
 ;%define TRACE_CARD_INIT
@@ -95,16 +95,19 @@ main:
 
 	printStringLn "OK"
 
-	call readAndPrintCardInfo
-	call newline
-
-	; card_init does read OCR do check if block or byte
+	; card_init does read OCR to check if block or byte
 	; addressing is to be used (and sets flags) but does
 	; not keep the value around. Fetch it again to display
 	; it laster.
 	call card_cmd58
+	jc .ocr_read_failed
 	mov [card_ocr], ax
 	mov [card_ocr+2], bx
+
+	; Now we have the card info and OCR in memory,
+	; display card information.
+	call readAndPrintCardInfo
+	call newline
 
 	; Read boot sector
 	mov bp, mbrbuf
@@ -161,6 +164,9 @@ main:
 	call cmd_findFirst
 	jmp .prompt
 
+.ocr_read_failed:
+	printString "OCR read failed"
+	jmp exit
 
 .boot_read_failed:
 	printString "Error reading boot sector"
