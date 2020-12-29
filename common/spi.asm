@@ -70,6 +70,26 @@ spi_select:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
+	; spi_clk24_deselect_clk24: Send 24 clock pulses, deselect, send another 24 pulses
+	;
+	; This is a convenience function. It is sometimes useful (seems to avoid
+	; some errors on some cards) to add extra clock cycles around deselction.
+	;
+	; No arguments
+	; No return
+	;
+spi_clk24_deselect_clk24:
+	push cx
+	mov cx, 24
+	call spi_justclock
+	call spi_deselect
+	call spi_justclock
+	pop cx
+	ret
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
 	; spi_select: Drive the chip select output to a logic high
 	;
 	; No arguments
