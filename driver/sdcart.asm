@@ -35,9 +35,9 @@ bits 16
 %define NO_UNROLL_READ512
 ; Roughtly the same tradeoff for writes.
 %define NO_UNROLL_WRITE512
-%define BANNER_STR "sdcartl.sys v0.2"
+%define BANNER_STR "sdcartl.sys v0.3"
 %else
-%define BANNER_STR "sdcart.sys v0.2"
+%define BANNER_STR "sdcart.sys v0.3"
 %endif
 
 %undef TRACE_ERRORS
