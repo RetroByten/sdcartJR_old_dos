@@ -133,6 +133,25 @@ card_cmd12:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
+	; card_cmd13 : SEND_STATUS
+	;
+	; AL = R1 value
+	; Returns with carry set on timeout
+	;
+card_cmd13:
+	push bp
+	push ds
+	mov bp, cs
+	mov ds, bp
+	mov bp, _dat_cmd13
+	call card_sendCMD_R1
+	pop ds
+	pop bp
+	ret
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
 	; card_cmd16 : Set block length to 512
 	;
 	; AL = R1 value
@@ -1278,6 +1297,7 @@ _dat_cmd8: db 0x40+8, 0, 0, 1, 0xAA, 0x87
 _dat_cmd9: db 0x40+9, 0, 0, 0, 0x00, 0xAF
 _dat_cmd10: db 0x40+10, 0, 0, 0, 0x0, 0x1B
 _dat_cmd12: db 0x40+12, 0, 0, 0, 0, 0xFF ; CRC todo
+_dat_cmd13: db 0x40+13, 0, 0, 0, 0, 0xFF ; CRC todo
 _dat_cmd16: db 0x40+16, 0, 0, 0x02, 0, 0xFF ; CRC todo
 _dat_cmd55: db 0x40+55, 0, 0, 0, 0, 0xF7
 _dat_cmd58: db 0x40+58, 0, 0, 0, 0, 0xFF ; CRC todo
