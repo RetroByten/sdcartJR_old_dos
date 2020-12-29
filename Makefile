@@ -1,4 +1,4 @@
-RELEASE_FILE=sdcjr03.zip
+RELEASE_FILE=sdcjr04.zip
 
 all: bios driver tools
 
