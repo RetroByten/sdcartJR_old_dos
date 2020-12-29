@@ -401,6 +401,13 @@ int13h_fn02:
 	jmp int13_iret_clc
 
 .drv_not_ready:
+
+	; Retry the read. Helps for some cards where after init, the first sector reads
+	; fails no matter what. Otherwise, when DOS boots and tries to look at the partitions,
+	; the read fails and there is no drive c: in DOS.
+	call card_readSectors
+	jnc .done
+
 	mov bx, 0x40
 	mov ds, bx
 	mov ah, STATUS_FIXED_DISK_DRV_NOT_READY
