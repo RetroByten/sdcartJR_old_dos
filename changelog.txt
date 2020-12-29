@@ -1,3 +1,17 @@
+Release v04 : 2020-12-29
+	Compatiblity improvements and fixes.
+
+    - sdpart.com / sdcart.sys : Add retries reading MBR (fixes some
+	  non-working cards)
+	- sdcart.sys : Use CMD13 (Send Status) instead of CMD10 (Read CID) to
+	  detect card changes (Solves occasional errors with some cards)
+	- sdpart.com : Add more error checking, display card info before reading
+	  MBR, so at least some info is displayed if the read fails.
+	- BIOS : When reading a sector fails, it is retried at least once. (Fixes
+	  issues with some cards where drive C: would not be available)
+
+	Versions: sdpart.com v0.4, sdcart.sys v0.3, bios v0.30
+
 Release v03 : 2020-12-08
     - Add support for block-addressed cards (ie. > 2GB)
 	- Implement >32M partition support in sdcart.sys
