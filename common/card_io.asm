@@ -136,7 +136,12 @@ card_init:
 
 .retry:
 %ifdef TRACE_CARD_INIT
-	printString "."
+	printString "r"
+	push dx
+	mov dx, cx
+	call printHexWord
+	call  newline
+	pop dx
 %endif
 	call card_init_retry_delay
 	loop .retry_acmd41
@@ -177,9 +182,20 @@ card_init:
 	push ax
 	push bx
 	call card_cmd58
+	jc .cmd58_err
 	test ax, 0x4000	; Check for CCS bit
+.cmd58_err:
 	pop bx
 	pop ax
+
+	jnc .cmd58_ok
+
+%ifdef TRACE_CARD_INIT
+	printString "CMD58 error"
+	jmp .init_failed
+%endif
+
+.cmd58_ok:
 
 	; When bit 30 is set, it is a high capacity card
 	jz .byte_adressed
@@ -200,7 +216,23 @@ card_init:
 %endif
 	jmp .init_ok
 
+.cmd59_failed:
+%ifdef TRACE_CARD_INIT
+	printStringLn "CMD59 failed"
+%endif
+	jmp .init_failed
+
+.cmd16_failed:
+%ifdef TRACE_CARD_INIT
+	printStringLn "CMD16 failed"
+%endif
+
 .init_failed:
+
+%ifdef TRACE_CARD_INIT
+	printStringLn "Init failed"
+%endif
+
 	stc
 	jmp .done
 
@@ -208,9 +240,11 @@ card_init:
 
 	; Make sure CRCs are disabled. It should not be necessary.
 	call card_cmd59
+	jc .cmd59_failed
 
 	; Use 512 bytes blocks.
 	call card_cmd16
+	jc .cmd16_failed
 
 
 	;;; Read the CSD reg and compute the card size from it.
