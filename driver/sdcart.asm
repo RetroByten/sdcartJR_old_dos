@@ -373,15 +373,21 @@ partition_scan:
 command_media_check:
 
 	; If the computer was rebooted, the card may be already
-	; initialized and read_cid won't fail So only the first
+	; initialized and CMD13 won't fail or return idle. So only the first
 	; time, force a card init.
 	test byte [cs:force_init], 1
 	jnz .card_init
 
-	; Start by attempting to read the CID. This will fail if the card was
-	; changed.
-	call read_cid
+	; Start by reading the card status (CMD13). If the card is idle, or if the
+	; command fails, it means the card was changed or removed. A card that was
+	; previously initialized will not be idle.
+	call card_cmd13
 	jc .card_changed
+	cmp al, 0x01	; Idle? This means the card was changed.
+	je .card_changed
+
+;	call read_cid
+;	jc .card_changed
 
 	; If it did not fail, assume the card was not changed. (Should be true unless
 	; another program initialized the card. To detect this, the actual card ID should
