@@ -244,9 +244,8 @@ card_sendCMD_R1_D16:
 	loop .readanotherbyte
 
 	; Oups, R1 never came our way. Return with carry set...
-	call spi_deselect
 	ERR_TRACE '5'
-
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -270,14 +269,15 @@ card_sendCMD_R1_D16:
 
 	; Oups, token never came our way. Return with carry set...
 	ERR_TRACE '6'
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
 .error_token:
+	ERR_TRACE '7'
 
 	; Oups, there was an error...
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -288,14 +288,7 @@ card_sendCMD_R1_D16:
 	call spi_rxbytes
 
 	; Read the CRC (ignoring it for now) and one more byte.
-	mov cx, 3*8
-	call spi_justclock
-
-	call spi_deselect
-
-	mov cx, 3*8
-	call spi_justclock
-
+	call spi_clk24_deselect_clk24
 	clc
 
 .done:
@@ -402,7 +395,7 @@ card_cmd17:
 	ERR_TRACE '1'
 
 	; Oups, R1 never came our way. Return with carry set...
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -430,7 +423,7 @@ card_cmd17:
 
 	; Oups, token never came our way. Return with carry set...
 	ERR_TRACE '2'
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -438,14 +431,22 @@ card_cmd17:
 	ERR_TRACE '3'
 
 	; Oups, there was an error...
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
 .r1_error:
 	ERR_TRACE '4'
 
-	call spi_deselect
+	push dx
+	mov dl, '='
+	call putchar
+	mov dl, al
+	call printHexByte
+	call newline
+	pop dx
+
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -467,14 +468,7 @@ card_cmd17:
 	pop es
 
 	; Read the CRC (ignoring it for now) and one more byte.
-	mov cx, 3*8
-	call spi_justclock
-
-	call spi_deselect
-
-	mov cx, 3*8
-	call spi_justclock
-
+	call spi_clk24_deselect_clk24
 	clc
 
 .done:
@@ -540,7 +534,7 @@ card_cmd18:
 	ERR_TRACE '1'
 
 	; Oups, R1 never came our way. Return with carry set...
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -571,7 +565,7 @@ card_cmd18:
 
 	; Oups, token never came our way. Return with carry set...
 	ERR_TRACE '2'
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -579,14 +573,14 @@ card_cmd18:
 	ERR_TRACE '3'
 
 	; Oups, there was an error...
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
 .r1_error:
 	ERR_TRACE '4'
 
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -618,12 +612,8 @@ card_cmd18:
 	jnz .next_block ; Still more to go?
 
 	; No more!
-	mov cx, 8
-	call spi_justclock
-
-
+	call spi_clk24_deselect_clk24
 	clc
-	call spi_deselect
 
 .done:
 
@@ -676,17 +666,13 @@ card_cmd23:
 	ERR_TRACE 'k'
 
 	; Oups, R1 never came our way. Return with carry set...
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
 .got_r1:
 	; Received R1, value is in AL now.
-
-	mov cx, 8
-	call spi_justclock
-
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	clc
 
 .done:
@@ -742,7 +728,7 @@ card_cmd24:
 
 	; Oups, R1 never came. Return with carry set..
 	mov dl, 0xff		; Return value for R1 timeout
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -790,7 +776,7 @@ card_cmd24:
 	; Oups, no data token...
 	ERR_TRACE '8'
 	mov dl, 0x1F	; return value for token timeout
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -809,17 +795,14 @@ card_cmd24:
 	; Oups, card still busy....
 	ERR_TRACE '9'
 	mov dl, 0x2F		; return value for busy timeout
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
 .idle:
 
 	; Read one extra byte to be safe
-	call spi_receive_byte
-	call spi_deselect
-	call spi_receive_byte
-
+	call spi_clk24_deselect_clk24
 	clc	; Clear Carry (no timeout)
 
 .done:
@@ -882,7 +865,7 @@ card_cmd25:
 
 	; Oups, R1 never came. Return with carry set..
 	mov dl, 0xff		; Return value for R1 timeout
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -931,7 +914,7 @@ card_cmd25:
 	; Oups, no data response...
 	ERR_TRACE '8'
 	mov dl, 0x1F	; return value for token timeout
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -950,7 +933,7 @@ card_cmd25:
 	; Oups, card still busy....
 	ERR_TRACE '9'
 	mov dl, 0x2F		; return value for busy timeout
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -979,18 +962,15 @@ card_cmd25:
 	; Infinitely busy?
 	ERR_TRACE 'A'
 	mov dl, 0x2F		; return value for busy timeout
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
 
 .final_idle:
 
+	call spi_clk24_deselect_clk24
 	clc	; Clear Carry (no timeout)
-
-	call spi_receive_byte
-	call spi_deselect
-	call spi_receive_byte
 
 .done:
 
@@ -1042,7 +1022,7 @@ card_cmd58:
 	loop .readanotherbyte
 
 	; Oups, R1 never came our way. Return with carry set...
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -1075,11 +1055,7 @@ card_cmd58:
 	pop di
 	pop es
 
-	mov cx, 8
-	call spi_justclock
-
-
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	clc
 
 .done:
@@ -1127,7 +1103,7 @@ card_cmd8:
 	loop .readanotherbyte
 
 	; Oups, R1 never came our way. Return with carry set...
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -1150,8 +1126,7 @@ card_cmd8:
 	pop es
 
 	; R1 value still in AL...
-
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	clc
 
 .done:
@@ -1200,7 +1175,7 @@ card_sendCMD_R1B:
 
 	ERR_TRACE '%'
 	; Oups, R1 never came our way. Return with carry set...
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
@@ -1218,16 +1193,12 @@ card_sendCMD_R1B:
 
 	ERR_TRACE '&'
 	; Busy for ever?
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
 .idle:
-
-	mov cx, 8
-	call spi_justclock
-
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	clc
 
 .done:
@@ -1269,17 +1240,14 @@ card_sendCMD_R1:
 	loop .readanotherbyte
 
 	; Oups, R1 never came our way. Return with carry set...
-	call spi_deselect
+	ERR_TRACE '<'
+	call spi_clk24_deselect_clk24
 	stc
 	jmp .done
 
 .got_r1:
 	; Received R1, value is in AL now.
-
-	mov cx, 8
-	call spi_justclock
-
-	call spi_deselect
+	call spi_clk24_deselect_clk24
 	clc
 
 .done:
