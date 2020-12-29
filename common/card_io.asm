@@ -113,10 +113,12 @@ card_init:
 
 .cmd8_ok:
 %ifdef TRACE_CARD_INIT
+	push cx
 	printString "CMD8 OK: "
 	mov cx, 6
 	call hexdump
 	call newline
+	pop cx
 %endif
 
 .try_acmd41:
