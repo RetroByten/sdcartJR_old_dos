@@ -1,5 +1,5 @@
 ; SD-Cart JR : PCJR Card reader cartridge
-; Copyright (C) 2020 Raphael Assenat <raph@raphnet.net>
+; Copyright (C) 2020-2021 Raphael Assenat <raph@raphnet.net>
 ;
 ; This program is free software; you can redistribute it and/or
 ; modify it under the terms of the GNU General Public License
@@ -106,7 +106,7 @@ init:
 	; Begin by showin the banner
 	printString "SD-Cart JR v1 BIOS v"
 	printStringLn VERSION_STR
-	printStringLn "(C) Copyright 2020 Raphael Assenat"
+	printStringLn "(C) Copyright 2020-2021 Raphael Assenat"
 	call newline
 
 	; Now check if there already is a hard drive.
