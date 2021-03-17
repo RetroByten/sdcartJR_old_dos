@@ -12,13 +12,56 @@
 ; [0] : Flags (see card_io.asm)
 ; [1] : Other status
 ;       Bit 0: CHS displayed
+;		Bit 4: Translating (Drive 81h->80h, etc)
 ;
 ; [2-3] : cylinders
 ; [4-5] : heads
 ; [6-7] : sectors per track
 ; The above matches STRUC disk_geometry
+%define MEM_STORED_STRUCT_SIZE 8
 
 %define MEM_STATUS_CHS_DISPLAYED	1
+
+%define MEM_STATUS_TRANSLATING		0x10
+
+memory_clearStoredData:
+	push di
+	push es
+	push cx
+	push ax
+
+	xor ax, ax
+	mov es, ax
+	mov di, INT_USED_TO_STORE_DATA * 4
+
+	mov cx, MEM_STORED_STRUCT_SIZE
+	rep stosb
+
+	pop ax
+	pop cx
+	pop es
+	pop di
+	ret
+
+memory_testTranslating:
+	push ax
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	test byte [INT_USED_TO_STORE_DATA * 4 + 1], MEM_STATUS_TRANSLATING
+	pop ds
+	pop ax
+	ret
+
+memory_setTranslating:
+	push ax
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	or byte [INT_USED_TO_STORE_DATA * 4 + 1], MEM_STATUS_TRANSLATING
+	pop ds
+	pop ax
+	ret
 
 memory_testCHSdisplayed:
 	push ax
