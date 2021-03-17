@@ -1,5 +1,5 @@
 ; SD-Cart JR : PCJR Card reader cartridge
-; Copyright (C) 2020 Raphael Assenat <raph@raphnet.net>
+; Copyright (C) 2020-2021 Raphael Assenat <raph@raphnet.net>
 ;
 ; This program is free software; you can redistribute it and/or
 ; modify it under the terms of the GNU General Public License
@@ -75,6 +75,47 @@ int13h_card_drive81:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
+	; int13h_card_drive81: Card int13h handler for drive 81, but with the ability
+	; to correct the drive count in DL when int13,08 is invoked. (Otherwise
+	; DOS/Fdisk won't look at drive 81)
+	;
+int13h_card_drive81_fixcount:
+	pushf
+	cmp dl, 0x80	; Floppy?
+	jl _int13h_common.not_disk
+	cmp dl, 0x81	; This drive?
+	je _int13h_common
+	cmp ah, 0x08	; Is this AH=8 Get drive parameters?
+	jne _int13h_common.not_disk
+	popf
+	int NEWINT13
+	inc dl	 ; Does not affect carry flag
+	retf 2
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; int13h_card_drive80_translate: Card int13h handler for drive 80, with translation.
+	;
+	; I.e. The card has priority, the already installed drive will be at 81, but
+	; this drive's BIOS does not know about that and still "thinks" it is drive 80
+	; so subtract 1 before jumping to the old int13 handler.
+	;
+int13h_card_drive80_translate:
+	pushf
+	cmp dl, 0x80
+	jl _int13h_common.not_disk	; Floppy
+	jne .translate	; Not 80?
+	jmp _int13h_common ; Ok this is for us!
+.translate:
+	jl .not_hdd
+	dec dl
+.not_hdd:
+	jmp _int13h_common.not_disk
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
 	; int13h_card_drive82: Card int13h handler for drive 82
 	;
 int13h_card_drive82:
@@ -86,6 +127,24 @@ int13h_card_drive82:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
+	; int13h_card_drive82_fixcount: See int13h_card_drive81_fixcount for comments.
+	;
+int13h_card_drive82_fixcount:
+	pushf
+	cmp dl, 0x80	; Floppy?
+	jl _int13h_common.not_disk
+	cmp dl, 0x82	; This drive?
+	je _int13h_common
+	cmp ah, 0x08	; Is this AH=8 Get drive parameters?
+	jne _int13h_common.not_disk
+	popf
+	int NEWINT13
+	inc dl	 ; Does not affect carry flag
+	retf 2
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
 	; int13h_card_drive83: Card int13h handler for drive 83
 	;
 int13h_card_drive83:
@@ -93,6 +152,24 @@ int13h_card_drive83:
 	cmp dl, 0x83
 	jne _int13h_common.not_disk
 	jmp _int13h_common
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; int13h_card_drive82_fixcount: See int13h_card_drive81_fixcount for comments.
+	;
+int13h_card_drive83_fixcount:
+	pushf
+	cmp dl, 0x80	; Floppy?
+	jl _int13h_common.not_disk
+	cmp dl, 0x83	; This drive?
+	je _int13h_common
+	cmp ah, 0x08	; Is this AH=8 Get drive parameters?
+	jne _int13h_common.not_disk
+	popf
+	int NEWINT13
+	inc dl	 ; Does not affect carry flag
+	retf 2
 
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -632,12 +709,73 @@ int13h_fn08:
 	mov dh, [es:si + disk_geometry.heads]
 	dec dh ; return value is max head number, not head count
 
-	mov dl, 1	; TODO : Floppies + Hard drives???
+	mov dl, 1	; Number of hard drives on first controller. (default value)
+
+	;;; If the SD-Cart JR BIOS has taken over another hard drive BIOS, we must count it.
+	call memory_testTranslating
+	jz .not_translating
+
+	; The the count reported by the other hard drive BIOS
+	call int13h_add_other_drives_to_dx
+
+.not_translating:
+
 
 	pop si
 	pop es
 
 	jmp int13_iret_clc
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; Add to DX the number of drives reported by int13h,08 DL=81h
+	;
+	; For use only when the SD-Cart BIOS is installed as drive 80h
+	; in translation mode, otherwise recursion will happen.
+	;
+int13h_add_other_drives_to_dx:
+	push bp
+
+	mov bp, 0
+
+	push ax
+	push bx
+	push cx
+	push dx
+	push es
+	push di
+
+	xor di, di
+	mov es, di
+	mov ah, 8
+	mov dl, 0x81
+	stc ; Set carry in advance, just in case int13h for drive 81 just returns.
+	int 13h
+	jc .err
+
+	; More than 3 drives is suspicious. Likely DL was left as is?
+	test dl, 0xfc
+	jnz .err
+
+	and dx, 0xff ; Number of drives in DL. clear DH.
+	mov bp, dx
+
+.err:
+
+	pop di
+	pop es
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+
+	; Intention is to add to DL (which is 1), but the value is in
+	; BP. The upper byte has been cleared above to avoid touching DH (max head number)
+	add dx, bp
+
+	pop bp
+
+	ret
 
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
