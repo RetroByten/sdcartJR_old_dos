@@ -1,11 +1,11 @@
 NASM=nasm -I ../common
 JRROMCHK=../jrromchk/jrromchk
-VERSION=0.30
+VERSION=0.40
 OUTDIR=../outputs
 
 VPATH=../common
 
-includes=spi.asm card_io.asm card_cmd.asm strutil_bios.asm int13h.asm int19h.asm chs2lba.asm chsfitter.asm print16.asm memory.asm
+includes=spi.asm card_io.asm card_cmd.asm strutil_bios.asm int13h.asm int19h.asm chs2lba.asm chsfitter.asm print16.asm memory.asm menu.asm kb.asm
 
 all: $(OUTDIR)/sdcart.rom
 

@@ -68,6 +68,11 @@ entry:
 %include 'int13h.asm'
 %include 'int19h.asm'
 
+%include 'kb.asm'
+%include 'menu.asm'
+
+;%include 'hexdump.asm'
+
 section .text
 
 
@@ -109,10 +114,40 @@ init:
 	printStringLn "(C) Copyright 2020-2021 Raphael Assenat"
 	call newline
 
+	call memory_clearStoredData
+
 	; Now check if there already is a hard drive.
 	call get_nfdsks
 	cmp ax, 0
+	ja .multidrive_setup
+
+	; When the SD-Cart JR is the only "Hard drive"
+.singledrive_setup:
+	call offer_options_menu_single
+	cmp bl, MENU_OPTION_SINGLE_DRIVE
 	je .int_setup_hd0
+	; The only alternative to installing the BIOS is not installing it.
+	jmp .sdcart_jr_disabled
+
+	; When there is more than one drive, the SD-Cart JR can either:
+	;
+	; - Become first drive, displacing the drives already present by
+	;   translating the DL value in subsequant int13h calls.
+	;
+	; - Install as the last drive, incrementing by one the value returned
+	;   in DL when the original int 13h handler is invoked.
+.multidrive_setup:
+	call offer_options_menu_multidrive
+	cmp bl, MENU_OPTION_FIRST_DRIVE
+	je .int_setup_hd0_translate
+	cmp bl, MENU_OPTION_SINGLE_DRIVE
+	je .int_setup_hd0
+	cmp bl, MENU_OPTION_NO_INSTALL
+	je .sdcart_jr_disabled
+
+	; Default option: MENU_OPTION_LAST_DRIVE
+
+.install_as_last_drive:
 	cmp ax, 1
 	je .int_setup_hd1
 	cmp ax, 2
@@ -122,6 +157,7 @@ init:
 
 .too_many_hard_drives:
 	printStringLn "Error: Too many drives ( > 4 )."
+.sdcart_jr_disabled:
 	printStringLn "SD-Cart JR disabled."
 	jmp .init_done
 
@@ -131,35 +167,55 @@ init:
 .int_setup_hd0:
 	mov dx, int13h_card_drive80
 	call install_int13h
-	call inc_nfdsks
 	printStringLn "Int 13h installed for drive 80h"
 	call install_int19
 	printStringLn "Int 19h installed"
+	mov al, 0x80
 	jmp .int_setup_done
 
 	; Install a new int 13h handler for disk 0x81 (hd1)
 .int_setup_hd1:
-	mov dx, int13h_card_drive81
+	mov dx, int13h_card_drive81_fixcount
 	call install_int13h
-	call inc_nfdsks
 	printStringLn "Int 13h installed for drive 81h"
+	mov al, 0x81
 	jmp .int_setup_done
 
 	; Install a new int 13h handler for disk 0x82 (hd2)
 .int_setup_hd2:
-	mov dx, int13h_card_drive82
+	mov dx, int13h_card_drive82_fixcount
 	call install_int13h
-	call inc_nfdsks
 	printStringLn "Int 13h installed for drive 82h"
+	mov al, 0x82
 	jmp .int_setup_done
 
 	; Install a new int 13h handler for disk 0x83 (hd3)
 .int_setup_hd3:
-	mov dx, int13h_card_drive83
+	mov dx, int13h_card_drive83_fixcount
 	call install_int13h
-	call inc_nfdsks
 	printStringLn "Int 13h installed for drive 83h"
+	mov al, 0x83
 	jmp .int_setup_done
+
+	; Install a new int 13h handler for disk 0x80 (hd0) with
+	; translation for already existing drive (i.e. drive 80 becomes
+	; drive 81, etc)
+.int_setup_hd0_translate:
+	mov dx, int13h_card_drive80_translate
+	call install_int13h
+	printStringLn "Int 13h installed for drive 80h (translate)"
+	call install_int19
+	printStringLn "Int 19h installed"
+
+	; Set a flag to let the int13,08 code know that it should
+	; also adjust DL based on how many drives are present on
+	; the original controller
+	call memory_setTranslating
+
+	mov al, 0x80
+	jmp .int_setup_done
+
+
 
 
 .int_setup_done:
@@ -171,10 +227,12 @@ init:
 .retry1:
 	mov dl, '.'
 	call putchar
-	mov dl, 0x80
+	mov dl, al ; Drive number from above
 	mov ah, 0
 	push ds
+	push ax
 	int 13h
+	pop ax
 	pop ds
 	jnc .init_ok
 
@@ -189,6 +247,7 @@ init:
 .init_done:
 	call delay
 
+
 .return:
 	pop ds
 	pop dx
@@ -197,6 +256,79 @@ init:
 	pop ax
 	retf
 
+
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; get_nfdsks: Try to figure out if there is/are other disks present in the system.
+	;
+	; First check if the current int13h handler is the default PCjr BIOS handler.
+	; If it is, the SD-Cart JR is the only drive.
+	;
+	; Otherwise, call reset disk system on each disk, checking status afterwards.
+	; Count those not in error to know how many drives there are.
+	;
+	; Returns count in AX
+	;
+get_nfdsks:
+	push es
+	push bx
+	push cx
+	push dx
+	push bp
+	push di
+
+	mov bp, 0 ; Counter for number of disks found
+
+	xor ax, ax ; Segment 0000
+	mov es, ax
+	mov di, ax
+
+	; Fetch current int13h
+	es mov ax, [13h * 4]		; Offset
+	es mov bx, [13h * 4 + 2]	; Segment
+
+	cmp bx, 0xF000
+	jne .thirdparty_handler
+	cmp ax, 0xEC59
+	jne .thirdparty_handler
+
+.stock_handler:
+	printStringLn "Current int13h handler: Standard"
+	jmp .ret
+
+.thirdparty_handler:
+	printStringLn "Current int13h handler: 3rd party"
+
+
+.disk_test:
+	mov ah, 8
+	mov dl, 0x80
+	int 13h
+	jc .disk_failed
+	printString "Existing BIOS reports "
+	call printHexByte ; From DL
+	printStringLn " drive(s)"
+	and dx, 0xff
+	add bp, dx
+
+.disk_failed:
+
+.ret:
+	mov ax, bp
+
+	pop di
+	pop bp
+	pop dx
+	pop cx
+	pop bx
+	pop es
+	ret
+
+%if 0
+	; This address of the BDA is used for floppy related stuff by the
+	; PCjr BIOS. So this does not work.
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	;
@@ -226,6 +358,7 @@ inc_nfdsks:
 	pop es
 	pop ax
 	ret
+%endif
 
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
