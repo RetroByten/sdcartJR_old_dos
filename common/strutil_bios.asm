@@ -69,6 +69,21 @@ hexdump:
 	ret
 
 
+; ***** printSegmentOffset
+; Segment in BX
+; Offset in AX
+printSegmentOffset:
+	push dx
+	mov dx, bx
+	call printHexWord
+	mov dl, ':'
+	call putchar
+	mov dx, ax
+	call printHexWord
+	pop dx
+	ret
+
+
 ; ***** printHexWord
 ; Word in dx
 printHexWord:
