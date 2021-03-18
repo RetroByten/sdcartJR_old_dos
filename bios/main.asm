@@ -291,20 +291,27 @@ get_nfdsks:
 
 	cmp bx, 0xF000
 	jne .thirdparty_handler
-	cmp ax, 0xEC59
-	jne .thirdparty_handler
+	; I'm not sure if there were multiple revisions of the BIOS, and
+	; if the int13h handler on BIOS on JX systems is at the same
+	; offset... So consider anything inside segment F000 as standard.
+	; cmp ax, 0xEC59
+	; jne .thirdparty_handler
 
 .stock_handler:
-	printStringLn "Current int13h handler: Standard"
+	printString "Current int13h handler: System BIOS ("
+	call printSegmentOffset ; BX:AX
+	printStringLn ")"
 	jmp .ret
 
 .thirdparty_handler:
-	printStringLn "Current int13h handler: 3rd party"
-
+	printString "Current int13h handler: 3rd party ("
+	call printSegmentOffset ; BX:AX
+	printStringLn ")"
 
 .disk_test:
 	mov ah, 8
 	mov dl, 0x80
+	stc
 	int 13h
 	jc .disk_failed
 	printString "Existing BIOS reports "
