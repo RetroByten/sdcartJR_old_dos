@@ -308,7 +308,7 @@ get_nfdsks:
 	int 13h
 	jc .disk_failed
 	printString "Existing BIOS reports "
-	call printHexByte ; From DL
+	call printHexNibble ; From DL
 	printStringLn " drive(s)"
 	and dx, 0xff
 	add bp, dx
