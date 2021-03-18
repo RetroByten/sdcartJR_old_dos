@@ -99,7 +99,7 @@ offer_options_menu_single:
 	ja .reask
 
 	cmp al, '1'
-	jmp .ret_single_drive
+	je .ret_single_drive
 
 	mov bl, MENU_OPTION_NO_INSTALL
 	jmp .ret
