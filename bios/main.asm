@@ -158,7 +158,7 @@ init:
 .too_many_hard_drives:
 	printStringLn "Error: Too many drives ( > 4 )."
 .sdcart_jr_disabled:
-	printStringLn "SD-Cart JR disabled."
+	printStringLn "SD-Cart JR BIOS disabled."
 	jmp .init_done
 
 	; Install a new int 13h handler for disk 0x80 (hd0)
