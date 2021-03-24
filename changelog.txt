@@ -1,15 +1,21 @@
-Release v05 : Future
+Release v05 : 2021-03-24
     - BIOS : Improvements for co-existing with another hard drive BIOS. By
-	  default, the SD-Cart JR becomes the last drive in the systesm. (tested
+	  default, the SD-Cart JR becomes the last drive in the system. (tested
 	  only with JR-IDE)
-	- Add an options menu to allow non-default behavior, such as:
+	- BIOS : Add an options menu to allow non-default behavior, such as:
 	  - Installing the SD-Cart JR as the first drive in a system with
 	    another hard drive BIOS (existing hard drive becomes second hard
 		drive and remains accessible)
 	  - Installing as single drive (other hard drive not accessible)
 	  - Not installing the SD-Cart BIOS.
+	  - (v0.41) The option menu count down can be skipped by pressing ESC.
+	- sdcart.sys : Add support for command-line options /Y (always install)
+	  and /A (install only if card present). Also displays the drive
+	  letter it got assigned to on DOS 5.
+	- sdpart.com : Add a 'b' command for some BIOS tests. (for debugging
+ 	  purposes)
 
-	Versions: sdpart.com v0.4, sdcart.sys v0.3, bios v0.40
+	Versions: sdpart.com v0.5, sdcart.sys v0.5, bios v0.41
 
 Release v04 : 2020-12-29
 	Compatiblity improvements and fixes.
