@@ -28,8 +28,8 @@
 	;
 	; Wait for a keypress, with a timeout of approx. 1s.
 	;
-	; Returns with carry set if a key was pressed. Also removes
-	; the keypress from the keyboard buffer (calls kb_flush)
+	; Returns with carry set if a key was pressed. Does not remove the keypress
+	; from the buffer.
 	;
 kb_wait_keypress_timeout:
 	push ax
@@ -46,7 +46,6 @@ kb_wait_keypress_timeout:
 	clc
 	jmp .ret
 .press:
-	call kb_flush
 
 	stc
 .ret:
