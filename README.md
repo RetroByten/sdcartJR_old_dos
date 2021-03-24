@@ -25,6 +25,14 @@ Installation is a simple matter of adding DEVICE=SDCART.SYS to config.sys.
 If you are willing to sacrifice a few kB/s of transfer speed to save memory, SDCARTL.SYS
 is also available. (It uses approx. 3kB in size instead of 9kB).
 
+Starting with version 0.5, when used on DOS 3.0+, sdcart.sys supports two command-line switches:
+
+ * /Y  Instead of asking, always install (Yes)
+ * /A  Install only if a card is detected (Auto)
+
+For intance, to always install, use this in your config.sys file:
+
+DEVICE=SDCART.SYS /Y
 
 ### Boot ROM
 
