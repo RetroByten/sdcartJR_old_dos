@@ -101,6 +101,10 @@ int13h_card_drive81_fixcount:
 	; this drive's BIOS does not know about that and still "thinks" it is drive 80
 	; so subtract 1 before jumping to the old int13 handler.
 	;
+	; Also, when the old int13h,08 handler returns, DL must then be increased by one
+	; to report the correct number of drives, otherwise Fdisk won't see all
+	; drives and partitonning drive 81 won't work.
+	;
 int13h_card_drive80_translate:
 	pushf
 	cmp dl, 0x80
@@ -108,10 +112,14 @@ int13h_card_drive80_translate:
 	jne .translate	; Not 80?
 	jmp _int13h_common ; Ok this is for us!
 .translate:
-	jl .not_hdd
-	dec dl
-.not_hdd:
-	jmp _int13h_common.not_disk
+	dec dl	; Drive 81 becomes 80, etc
+	cmp ah, 0x08 ; Is this AH=8, Get drive parameters?
+	jne _int13h_common.not_disk ; Proceed to the old handler normally
+	; It is! Call the old handler, then increase DL before returning.
+	popf
+	int NEWINT13
+	inc dl ; Add the SD-Cart JR to the count
+	retf 2
 
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -711,15 +719,6 @@ int13h_fn08:
 
 	mov dl, 1	; Number of hard drives on first controller. (default value)
 
-	;;; If the SD-Cart JR BIOS has taken over another hard drive BIOS, we must count it.
-	call memory_testTranslating
-	jz .not_translating
-
-	; The the count reported by the other hard drive BIOS
-	call int13h_add_other_drives_to_dx
-
-.not_translating:
-
 	; If SD-Cart JR is installed as drive 81h-83h, it needs to add the count of preceding
 	; drives to DL
 	call memory_testAdd0
@@ -736,57 +735,6 @@ int13h_fn08:
 	pop es
 
 	jmp int13_iret_clc
-
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	;
-	; Add to DX the number of drives reported by int13h,08 DL=81h
-	;
-	; For use only when the SD-Cart BIOS is installed as drive 80h
-	; in translation mode, otherwise recursion will happen.
-	;
-int13h_add_other_drives_to_dx:
-	push bp
-
-	mov bp, 0
-
-	push ax
-	push bx
-	push cx
-	push dx
-	push es
-	push di
-
-	xor di, di
-	mov es, di
-	mov ah, 8
-	mov dl, 0x81
-	stc ; Set carry in advance, just in case int13h for drive 81 just returns.
-	int 13h
-	jc .err
-
-	; More than 3 drives is suspicious. Likely DL was left as is?
-	test dl, 0xfc
-	jnz .err
-
-	and dx, 0xff ; Number of drives in DL. clear DH.
-	mov bp, dx
-
-.err:
-
-	pop di
-	pop es
-	pop dx
-	pop cx
-	pop bx
-	pop ax
-
-	; Intention is to add to DL (which is 1), but the value is in
-	; BP. The upper byte has been cleared above to avoid touching DH (max head number)
-	add dx, bp
-
-	pop bp
-
-	ret
 
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

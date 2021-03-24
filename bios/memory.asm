@@ -87,26 +87,6 @@ memory_setAdd1:
 	pop ax
 	ret
 
-memory_testTranslating:
-	push ax
-	push ds
-	xor ax, ax	; Segment 0000
-	mov ds, ax
-	test byte [INT_USED_TO_STORE_DATA * 4 + 1], MEM_STATUS_TRANSLATING
-	pop ds
-	pop ax
-	ret
-
-memory_setTranslating:
-	push ax
-	push ds
-	xor ax, ax	; Segment 0000
-	mov ds, ax
-	or byte [INT_USED_TO_STORE_DATA * 4 + 1], MEM_STATUS_TRANSLATING
-	pop ds
-	pop ax
-	ret
-
 memory_testCHSdisplayed:
 	push ax
 	push ds

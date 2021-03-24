@@ -214,16 +214,25 @@ init:
 	; translation for already existing drive (i.e. drive 80 becomes
 	; drive 81, etc)
 .int_setup_hd0_translate:
+	call get_nfdsks	; Return the number of other drives in AX
+
 	mov dx, int13h_card_drive80_translate
 	call install_int13h
 	printStringLn "Int 13h installed for drive 80h (translate)"
 	call install_int19
 	printStringLn "Int 19h installed"
 
-	; Set a flag to let the int13,08 code know that it should
-	; also adjust DL based on how many drives are present on
-	; the original controller
-	call memory_setTranslating
+	; Configure the value to add to DL when returning the drive count
+	; in the SD-Cart int13h,08 handler.
+	and al, 1
+	jz .no1
+	call memory_setAdd0
+.no1:
+	and al, 2
+	jz .no2
+	call memory_setAdd1
+.no2:
+
 
 	mov al, 0x80
 	jmp .int_setup_done
