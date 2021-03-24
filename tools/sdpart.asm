@@ -356,6 +356,21 @@ cmd_biosInfo:
 	call printHexByte
 	call newline
 
+	mov ah, 0x08
+	mov dl, 0x82
+	int 13h
+	printString "Number of HDD on first controller (82h): "
+	call printHexByte
+	call newline
+
+	mov ah, 0x08
+	mov dl, 0x83
+	int 13h
+	printString "Number of HDD on first controller (83h): "
+	call printHexByte
+	call newline
+
+
 
 .ret:
 	pop es
