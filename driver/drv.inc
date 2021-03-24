@@ -42,7 +42,8 @@ STRUC init_request
 	.header: resb request_header.size
 	.num_units: resb 1 ; Number of units
 	.break_address: resd 1 ; Break address
-	.bpb_ptr: resd 1; ALso addr of DEVICE= line in CONFIG.SYS (3.0+)
+	.bpb_ptr: resd 1; Also addr of DEVICE= line in CONFIG.SYS (3.0+)
+	.bDrvNo: resb 1 ; DOS 3.0+ first drive number assigned to this device
 ENDSTRUC
 
 STRUC media_check

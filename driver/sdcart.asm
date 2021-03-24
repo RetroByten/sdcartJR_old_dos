@@ -229,16 +229,78 @@ command_init:
 %endif
 
 %ifdef ASK_INSTALL
+
+	; The pointer to the DEVICE= line of config.sys is for DOS 3.0+. When running on DOS 2,
+	; always ask...
+	mov ah, 0x30
+	push bx	; Got to be careful to preserve BX here! This call overwrites it...
+	int 21h
+	pop bx
+	cmp al, 3 ; Check major version number
+	jl .ask_install
+	;printStringLn "DOS 3.0+ detected"
+
+	; Check for presence of the /Y argument on the command-line
+	push ds
+	; Point DS:SI to the string
+	mov si, [es:bx + init_request.bpb_ptr]
+	mov ds, [es:bx + init_request.bpb_ptr + 2]
+	call check_for_Yarg ; Returns with CF set if not found
+	pop ds
+	jc .no_y_arg
+	;printStringLn "/Y found - Installing"
+	jmp .install
+
+.no_y_arg:
+	; Check for presence of the /A (auto) argument on the command-line
+	push ds
+	; Point DS:SI to the string
+	mov si, [es:bx + init_request.bpb_ptr]
+	mov ds, [es:bx + init_request.bpb_ptr + 2]
+	call check_for_Aarg ; Returns with CF set if not found
+	pop ds
+	jc .no_a_arg ; No.. then ask the user.
+
+	; /A arg found. Install or not depending on presence of card.
+
+	; card_init returns the card size in AX:BX. Not used, but we need to preserve
+	; the original BX value..
+	push bx
+	call card_init	 ; returns with CF set if failed
+	pop bx
+	jc .card_not_found
+
+%ifndef LOWMEM
+	printString "Card detected, "
+%endif
+	jmp .install
+
+.card_not_found:
+%ifndef LOWMEM
+	printString "No card detected, "
+%endif
+	jmp .noinstall
+
+.no_a_arg:
+	jmp .ask_install
+
+.ask_install:
 	printString "Install (y/N)?"
 	mov ah, 0x01
 	int 21h
 	cmp al, 'y'
-	je .install
+	je .install_y
 	cmp al, 'Y'
-	je .install
+	je .install_y
+	call newline ; Add a newline after the answer
+	jmp .noinstall
 
-.skip:
+.install_y:
+	; Add a newline after the answer
 	call newline
+	jmp .install
+
+.noinstall:
 %ifndef LOWMEM
 	printStringLn "Not installing"
 %endif
@@ -250,13 +312,10 @@ command_init:
 	mov word [es:bx + init_request.break_address + 2], ax
 
 	jmp _interrupt.cleanup
-%endif
+%endif ; ifdef ASK_INSTALL
 
 .install:
-	call newline
-
 	call card_powerup
-
 
 	mov byte [es:bx + init_request.num_units], 1
 
@@ -267,7 +326,30 @@ command_init:
 	mov word [es:bx + init_request.bpb_ptr], bpb_array
 	mov word [es:bx + init_request.bpb_ptr + 2], ax
 %ifndef LOWMEM
-	printStringLn "SD-Cart JR Installed"
+	printString "SD-Cart JR Installed"
+
+	;call newline
+	;printString " HL=0x"
+	;mov dl, [es:bx + request_header.length]
+	;call printHexByte
+	;call newline
+
+	; On recent DOS versions (such as DOS 5) the first drive number is
+	; available in the init request. We can use it to display which drive
+	; letter is assigned to the SD-Cart JR.
+	cmp byte [es:bx + request_header.length], 23
+	jl .no_block_dev_no
+
+	printString " as "
+	mov dl, [es:bx + init_request.bDrvNo]
+	add dl, 'A'
+	call putchar
+	mov dl, ':'
+	call putchar
+
+.no_block_dev_no:
+	call newline
+
 %endif
 	jmp _interrupt.cleanup
 
@@ -614,6 +696,92 @@ card_init_retry_delay:
 	ret
 
 
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; check_for_Yarg: Scan the string starting at DS:SI for /A.
+	;
+	; String ends by 0Ah, 0DH or 00h
+	;
+	; Returns with CF set if not found.
+	;
+check_for_Aarg:
+	push dx
+	mov dl, 'A'
+	call check_for_arg
+	jnc .ret	; Found it?
+	mov dl, 'a'
+	call check_for_arg
+.ret:
+	pop dx
+	ret
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; check_for_Yarg: Scan the string starting at DS:SI for /Y.
+	;
+	; String ends by 0Ah, 0DH or 00h
+	;
+	; Returns with CF set if not found.
+	;
+check_for_Yarg:
+	push dx
+	mov dl, 'Y'
+	call check_for_arg
+	jnc .ret	; Found it?
+	mov dl, 'y'
+	call check_for_arg
+.ret:
+	pop dx
+	ret
+
+
+	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	;
+	; check_for_arg: Scan the string starting at DS:SI for /<something>
+	;
+	; String ends by 0Ah, 0DH or 00h
+	;
+	; Returns with CF set if not found.
+	;
+	; Arg: DL = The character to look for.
+	;
+check_for_arg:
+	push ax
+	push si
+
+.next:
+	lodsb
+	cmp al, 0x0A
+	je .not_found
+	cmp al, 0x0D
+	je .not_found
+	cmp al, 0x00
+	je .not_found
+	cmp al, '/'
+	jne .next
+	; Found a / chracter. Get next character...
+	lodsb
+	; Make sure the string does not just end by a /
+	cmp al, 0x0A
+	je .not_found
+	cmp al, 0x0D
+	je .not_found
+	cmp al, 0x00
+	je .not_found
+
+	cmp al, dl	; Is this the one?
+	jne .next	; No, continue...
+
+	clc
+	jmp .ret
+
+.not_found:
+	stc
+.ret:
+	pop si
+	pop ax
+	ret
 
 
 section .data
