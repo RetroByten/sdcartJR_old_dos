@@ -33,12 +33,14 @@
 	;
 	; Display the press a ket for options message with a count down.
 	;
-	; Returns with carry set on timeout
+	; Returns with carry set on timeout (or ESC pressed)
 	;
 menu_entry_common:
+	push ax
 	push dx
 	call newline
 	printStringLn "* Press any key for options * "
+	printString "(ESC to skip) "
 
 	; * Press any key for options * 5 4 3 2 1
 
@@ -64,10 +66,16 @@ menu_entry_common:
 	stc
 	jmp .ret
 .pressed:
+	; Check if the ESC key was pressed
+	mov ah, 0x00
+	int 16h
+	cmp al, 27
+	je .timeout	; Return with CF set, like a timeout. (ESC is to skip)
 	call newline
 	clc
 .ret:
 	pop dx
+	pop ax
 	ret
 
 
