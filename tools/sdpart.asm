@@ -136,6 +136,9 @@ main:
 	je .cmd_1
 	cmp al, 'f'
 	je .cmd_f
+	cmp al, 'b'
+	je .cmd_b
+
 
 	jmp .prompt
 
@@ -163,6 +166,11 @@ main:
 .cmd_f:
 	call cmd_findFirst
 	jmp .prompt
+
+.cmd_b:
+	call cmd_biosInfo
+	jmp .prompt
+
 
 .ocr_read_failed:
 	printString "OCR read failed"
@@ -256,6 +264,105 @@ cmd_clear:
 	rep movsb
 
 	ret
+
+
+cmd_biosInfo:
+	push es
+
+	printStringLn "BIOS info"
+	call newline
+	call newline
+
+	printString "Int 13h handler: "
+	xor ax, ax
+	mov es, ax
+
+	mov ax, [es:13h * 4]		; Offset
+	mov bx, [es:13h * 4 + 2] 	; Segment
+	mov dx, bx
+	call printHexWord
+	mov dl, ':'
+	call putchar
+	mov dx, ax
+	call printHexWord
+	call newline
+
+
+	printString "Int 19h handler: "
+	xor ax, ax
+	mov es, ax
+
+	mov ax, [es:19h * 4]		; Offset
+	mov bx, [es:19h * 4 + 2] 	; Segment
+	mov dx, bx
+	call printHexWord
+	mov dl, ':'
+	call putchar
+	mov dx, ax
+	call printHexWord
+	call newline
+
+	; Scan SD-Cart JR ROM area to string "SD-Cart JR v1 BIOS v"
+	printString "SD-Cart BIOS: "
+.bios_check:
+	push ds
+
+	; Point DS:SI to string
+	mov ax, cs
+	mov ds, ax
+	mov si, str_rom_version
+	; Point ES:DI to first ROM address
+	mov ax, 0xD000
+	mov es, ax
+	xor di, di
+
+	cld
+
+.nomatch:	; Start comparing from the first char.
+	mov si, str_rom_version
+.next_char:
+	lodsb	; Get character to compare, store it in AL
+	and al, al	; If it is the ending NUL, we're done
+	jz .bios_found
+	cmp di, 0x5fff	; Are we at the end of the BIOS memory range?
+	je .bios_not_found	; Yes? Give up.
+	scasb			; Otherwise, compare the BIOS byte with AL
+	jne .nomatch	;
+	jmp .next_char
+
+
+.bios_not_found:
+	pop ds
+	printStringLn "not found"
+	jmp .bios_check_done
+
+.bios_found:
+	pop ds
+	printStringLn "present"
+
+.bios_check_done:
+
+	mov ah, 0x08
+	mov dl, 0x80
+	int 13h
+	printString "Number of HDD on first controller (80h): "
+	call printHexByte
+	call newline
+
+	mov ah, 0x08
+	mov dl, 0x81
+	int 13h
+	printString "Number of HDD on first controller (81h): "
+	call printHexByte
+	call newline
+
+
+.ret:
+	pop es
+	ret
+
+str_rom_version:
+	db "SD-Cart JR v1 BIOS v", 0
 
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -768,7 +875,7 @@ readAndPrintDosVersion:
 	; printBanner : Print a banner with the tool name and/or version
 	;
 printBanner:
-	printStringLn "SDpart version 0.4"
+	printStringLn "SDpart version 0.5"
 	printStringLn "Partition tool for SD-Cart JR"
 	ret
 
