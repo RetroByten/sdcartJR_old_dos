@@ -720,6 +720,17 @@ int13h_fn08:
 
 .not_translating:
 
+	; If SD-Cart JR is installed as drive 81h-83h, it needs to add the count of preceding
+	; drives to DL
+	call memory_testAdd0
+	jz .no_add1
+	inc dl
+
+.no_add1:
+	call memory_testAdd1
+	jz .no_add2
+	add dl, 2
+.no_add2:
 
 	pop si
 	pop es

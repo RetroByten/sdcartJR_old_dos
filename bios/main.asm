@@ -178,6 +178,10 @@ init:
 	mov dx, int13h_card_drive81_fixcount
 	call install_int13h
 	printStringLn "Int 13h installed for drive 81h"
+
+	; Add 1 to number of drives reported by the SD-Cart JR int13h,AH=08 handler.
+	call memory_setAdd0
+
 	mov al, 0x81
 	jmp .int_setup_done
 
@@ -186,6 +190,10 @@ init:
 	mov dx, int13h_card_drive82_fixcount
 	call install_int13h
 	printStringLn "Int 13h installed for drive 82h"
+
+	; Add 2 to number of drives reported by the SD-Cart JR int13h,AH=08 handler.
+	call memory_setAdd1
+
 	mov al, 0x82
 	jmp .int_setup_done
 
@@ -194,6 +202,11 @@ init:
 	mov dx, int13h_card_drive83_fixcount
 	call install_int13h
 	printStringLn "Int 13h installed for drive 83h"
+
+	; Add 3 to number of drives reported by the SD-Cart JR int13h,AH=08 handler.
+	call memory_setAdd0
+	call memory_setAdd1
+
 	mov al, 0x83
 	jmp .int_setup_done
 

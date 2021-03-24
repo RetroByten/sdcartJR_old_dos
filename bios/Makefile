@@ -1,6 +1,6 @@
 NASM=nasm -I ../common
 JRROMCHK=../jrromchk/jrromchk
-VERSION=0.40
+VERSION=0.41
 OUTDIR=../outputs
 
 VPATH=../common

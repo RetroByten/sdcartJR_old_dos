@@ -24,6 +24,10 @@
 
 %define MEM_STATUS_TRANSLATING		0x10
 
+;; 0 - 3
+%define MEM_STATUS_ADD_DRIVES0		0x20
+%define MEM_STATUS_ADD_DRIVES1		0x40
+
 memory_clearStoredData:
 	push di
 	push es
@@ -41,6 +45,46 @@ memory_clearStoredData:
 	pop cx
 	pop es
 	pop di
+	ret
+
+memory_testAdd0:
+	push ax
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	test byte [INT_USED_TO_STORE_DATA * 4 + 1], MEM_STATUS_ADD_DRIVES0
+	pop ds
+	pop ax
+	ret
+
+memory_testAdd1:
+	push ax
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	test byte [INT_USED_TO_STORE_DATA * 4 + 1], MEM_STATUS_ADD_DRIVES1
+	pop ds
+	pop ax
+	ret
+
+memory_setAdd0:
+	push ax
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	or byte [INT_USED_TO_STORE_DATA * 4 + 1], MEM_STATUS_ADD_DRIVES0
+	pop ds
+	pop ax
+	ret
+
+memory_setAdd1:
+	push ax
+	push ds
+	xor ax, ax	; Segment 0000
+	mov ds, ax
+	or byte [INT_USED_TO_STORE_DATA * 4 + 1], MEM_STATUS_ADD_DRIVES1
+	pop ds
+	pop ax
 	ret
 
 memory_testTranslating:
