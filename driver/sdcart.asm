@@ -1,5 +1,5 @@
 ; SD-Cart JR : PCJR Card reader cartridge
-; Copyright (C) 2020 Raphael Assenat <raph@raphnet.net>
+; Copyright (C) 2020-2021 Raphael Assenat <raph@raphnet.net>
 ;
 ; This program is free software; you can redistribute it and/or
 ; modify it under the terms of the GNU General Public License
@@ -35,9 +35,9 @@ bits 16
 %define NO_UNROLL_READ512
 ; Roughtly the same tradeoff for writes.
 %define NO_UNROLL_WRITE512
-%define BANNER_STR "sdcartl.sys v0.3"
+%define BANNER_STR "sdcartl.sys v0.5"
 %else
-%define BANNER_STR "sdcart.sys v0.3"
+%define BANNER_STR "sdcart.sys v0.5"
 %endif
 
 %undef TRACE_ERRORS
