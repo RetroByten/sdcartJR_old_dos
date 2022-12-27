@@ -40,11 +40,12 @@ section .text
 %define STATUS_FIXED_DISK_DRV_NOT_READY	0xAA
 
 ; Fixed disk geometry
-%define GEO_CYLINDERS	142
-%define GEO_SECTORS_PER_TRACK	63
-%define GEO_HEADS				16
+; Retrobyten - Changed to Type 1 fixed disk numbers
+%define GEO_CYLINDERS	306
+%define GEO_SECTORS_PER_TRACK	17
+%define GEO_HEADS				4
 
-;%define FIXED_GEOMETRY
+%define FIXED_GEOMETRY ; Retrobyten - Uncommented for old_dos support
 %include 'chs2lba.asm'
 %include 'chsfitter.asm'
 

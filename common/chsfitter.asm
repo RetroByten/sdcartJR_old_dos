@@ -67,6 +67,14 @@ chs_display:
 	;
 chs_fit:
 	push ax
+%ifdef FIXED_GEOMETRY ; Retrobyten - Set CHS geometry to fixed values
+	mov ax,GEO_CYLINDERS
+	mov [es:di + disk_geometry.cylinders],ax
+	mov ax,GEO_SECTORS_PER_TRACK
+	mov [es:di + disk_geometry.sectors],ax
+	mov ax,GEO_HEADS
+	mov [es:di + disk_geometry.heads],ax
+%else
 	push cx
 	push dx
 
@@ -209,6 +217,7 @@ chs_fit:
 
 	pop dx
 	pop cx
+%endif 
 	pop ax
 	ret
 

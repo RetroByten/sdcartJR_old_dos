@@ -1,3 +1,20 @@
+Fork v05_old_dos : 2022-12-26
+    - BIOS : Old DOS versions (2.1, 3.2) have an issue with CHS combinations
+	containing many sectors. This build of SDCarJr:
+	 1.) Enables the FIXED_GEOMETRY %define in int13h.asm
+	 2.) Sets the values to match a period correct (Type 1) 10MB fixed disk
+		in int13h.asm
+	 3.) Adds an %ifdef to enable the chsfitter.asm to use the defined 
+		FIXED_GEOMETRY
+	 4.) Updates the boot message in main.asm to add a note that this is a 
+		fork
+
+	Reference Discussion Thread:
+https://www.brutman.com/forums/viewtopic.php?p=8596
+	Reference Articles: 
+https://www.os2museum.com/wp/hang-with-early-dos-boot-sector/
+https://www.os2museum.com/wp/dos-boot-hang-update/
+
 Release v05 : 2021-03-24
     - BIOS : Improvements for co-existing with another hard drive BIOS. By
 	  default, the SD-Cart JR becomes the last drive in the system. (tested

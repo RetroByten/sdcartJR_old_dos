@@ -112,6 +112,8 @@ init:
 	printString "SD-Cart JR v1 BIOS v"
 	printStringLn VERSION_STR
 	printStringLn "(C) Copyright 2020-2021 Raphael Assenat"
+	printStringLn "Forked 20221226 - Retrobyten"
+	printStringLn " Force Type 1 CHS - DOS 2.1/DOS 3.2"
 	call newline
 
 	call memory_clearStoredData
