@@ -1,4 +1,23 @@
-# SD-Cart JR : MMC/SD card reader cartridge for PCjr
+# SD-Cart JR : MMC/SD card reader cartridge for PCjr, modified to work more consistently with PC-DOS 2.1 and PC-DOS 3.2
+
+Older versions of DOS (2.1, 3.2) have an behavior in the bootloader that conflicts with certain CHS geometries. This fork enables/slightly modifies the SD-Cart JR BIOS ROM to force a Type 1 (10 MB) geometry that won't trigger the the issue.
+
+Thread on the PCJr forums:
+https://www.brutman.com/forums/viewtopic.php?p=8598
+
+Reference Articles (by Michal Necasek of the OS/2 Museum) that detail the issue very well:
+https://www.os2museum.com/wp/hang-with-early-dos-boot-sector/
+https://www.os2museum.com/wp/dos-boot-hang-update/
+
+Acknowledgements:
+1.) Raphaël Assenat for both the phenomenal SD-Cart JR adapter and for open sourcing the BIOS
+2.) Michal Necasek of the OS/2 Museum (https://www.os2museum.com/)
+3.) Mike Brutman of Mike's PCJr Page, the primary PCJr Community Forum
+4.) Jim Leonard (Trixter), resident IBM PC expert for help triaging the issue
+
+Offical SD-Cart JR Repository: https://github.com/raphnet/sdcartJR
+
+## ORIGINAL AUTHOR (Raphaël Assenat) README PAGE BELOW
 
 ## Overview
 
