@@ -1,6 +1,6 @@
 NASM=nasm -I ../common
 JRROMCHK=../jrromchk/jrromchk
-VERSION=0.41_old_dos
+VERSION=0.41_old_dos_8K_ROM
 OUTDIR=../outputs
 
 VPATH=../common

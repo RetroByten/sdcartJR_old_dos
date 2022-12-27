@@ -28,6 +28,8 @@ bits 16
 cpu 8086
 [map symbols main.map]
 
+%define NO_UNROLL_WRITE512 ; Retrobyten - to fit on an 8K ROM
+%define NO_UNROLL_READ512 ; Retrobyten - to fit on an 8K ROM
 
 %define NEWINT13	68h		; This is where the original int13h will be moved
 %define NEWINT19	6Ah		; This is where the original int19h will be moved
@@ -105,7 +107,8 @@ init:
 	; Set a video mode here to clear the IBM logo. Otherwise the output is
 	; a mix of colored and invisible characters.
 	mov ah, 0
-	mov al, 3
+	;mov al, 3
+	mov al,0 ; Retrobyten - to work in 40co mode
 	int 10h
 
 	; Begin by showin the banner
